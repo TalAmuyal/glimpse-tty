@@ -7,14 +7,14 @@ import {
   paintInitialFrame,
 } from './kittyGraphics';
 import { cleanup, placeCursor, setup } from './output';
-import { pseudoRandomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 function pause(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const GFX_TEST_WHITE = '/gfx-test-white-' + pseudoRandomBytes(4).toString('hex');
-const GFX_TEST_RED = '/gfx-test-red-' + pseudoRandomBytes(4).toString('hex');
+const GFX_TEST_WHITE = '/gfx-test-white-' + randomBytes(4).toString('hex');
+const GFX_TEST_RED = '/gfx-test-red-' + randomBytes(4).toString('hex');
 
 async function main() {
   shmWrite(GFX_TEST_WHITE, Buffer.alloc(256 * 256 * 4, 255));

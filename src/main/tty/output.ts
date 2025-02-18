@@ -91,6 +91,7 @@ export const setup = () => {
 
 export const cleanup = () => {
   clearScreen();
-  setModes([Mode.alternateScreen], false);
+  setModes([Mode.alternateScreen, Mode.mouseMoveTracking, Mode.mouseSgrPixelMode], false);
+  setModes([Mode.textCursor], true);
   stdout.write(RESTORE_PRIVATE_MODE_VALUES + RESTORE_CURSOR + RESTORE_COLORS);
 };

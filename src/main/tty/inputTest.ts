@@ -1,14 +1,12 @@
 import { EscapeType, cleanupInput, listenForInput, setupInput } from 'awrit-native';
 import { format } from 'node:util';
 import * as out from './output';
-import * as sgrMouse from './sgrMouse';
 
 let quitListening = () => {};
 
 const cleanup = (signum = 1) => {
   quitListening();
   cleanupInput();
-  sgrMouse.disable();
   out.cleanup();
   process.exit(signum);
 };
@@ -19,7 +17,6 @@ function main() {
   process.on('SIGABRT', cleanup);
   out.setup();
   setupInput();
-  sgrMouse.enable();
   process.stdout.write('Awrit Input Test\r\n');
   quitListening = listenForInput((evt) => {
     if (evt.type === EscapeType.Key && evt.code === 'ctrl+c') {

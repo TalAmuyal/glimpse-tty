@@ -1,4 +1,20 @@
 {
-  "files": [],
-  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }]
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "outDir": "dist",
+    "strict": true,
+    "paths": {
+      "*": ["node_modules/*"]
+    },
+    "types": ["node"]
+  },
+  "include": ["src/main/**/*", "src/preload/**/*"]
 }

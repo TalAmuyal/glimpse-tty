@@ -38,7 +38,7 @@ function shmRgba_(name: string, size: Size, control: string) {
 export function paintBitmap(name: string, size: Size, control?: string) {
   // a=T transfer & display
   // C=1 don't move cursor
-  shmRgba_(name, size, `a=T,C=1${control == null ? '' : ',' + control}`);
+  shmRgba_(name, size, `a=T,q=2,C=1${control == null ? '' : ',' + control}`);
 }
 
 export function paintInitialFrame(name: string, size: Size): AnimationId {
@@ -46,13 +46,13 @@ export function paintInitialFrame(name: string, size: Size): AnimationId {
   // paint and transfer first frame
   paintBitmap(name, size, `i=${id}`);
   // pause at the first frame
-  stdout.write(GFX`a=a,i=${id},c=1`);
+  stdout.write(GFX`a=a,q=2,i=${id},c=1`);
   return id;
 }
 
 export function loadFrame(id: AnimationId, frame: number, name: string, size: Size): AnimationId {
   // a=f animation frame
-  shmRgba_(name, size, `a=f,i=${id},r=${frame}`);
+  shmRgba_(name, size, `a=f,q=2,i=${id},r=${frame}`);
   return id;
 }
 
@@ -66,15 +66,15 @@ export function compositeFrame(
   // a=c composite animation frame
   // C=1 replace pixels (src copy)
   stdout.write(
-    GFX`a=c,C=1,i=${id},r=${sourceFrame},c=${destinationFrame}${wh_size_(size)}${point_(destinationPoint)}`,
+    GFX`a=c,q=2,C=1,i=${id},r=${sourceFrame},c=${destinationFrame}${wh_size_(size)}${point_(destinationPoint)}`,
   );
 }
 
 export function clearPlacements() {
-  stdout.write(GFX`a=d`);
+  stdout.write(GFX`a=d,q=2`);
 }
 
 export function freeImage(id: AnimationId) {
   // a=d delete image
-  stdout.write(GFX`a=d,i${id}`);
+  stdout.write(GFX`a=d,q=2,i${id}`);
 }

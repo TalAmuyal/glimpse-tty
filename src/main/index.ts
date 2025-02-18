@@ -1,58 +1,108 @@
-import { is, optimizer } from '@electron-toolkit/utils';
-import { BrowserWindow, app, ipcMain, shell } from 'electron';
-import { join } from 'node:path';
+import { app, BrowserWindow } from 'electron';
+import {
+  shmUnlink,
+  shmWrite,
+  EscapeType,
+  cleanupInput,
+  listenForInput,
+  setupInput,
+} from 'awrit-native';
+import type { InputEvent } from 'awrit-native';
+import {
+  paintInitialFrame,
+  loadFrame,
+  compositeFrame,
+  clearPlacements,
+  freeImage,
+} from './tty/kittyGraphics';
+import * as out from './tty/output';
+import { randomBytes } from 'node:crypto';
 
-function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    show: false,
-    frame: false,
-    skipTaskbar: true,
-    autoHideMenuBar: true,
+let currentTermSize = { width: 0, height: 0 };
+const SHM_NAME = '/hn-frame-' + randomBytes(4).toString('hex');
+
+const INITIAL_URL = 'https://news.ycombinator.com';
+
+let exiting = false;
+let quitListening = () => {};
+
+const cleanup = (signum = 1) => {
+  exiting = true;
+  quitListening();
+  cleanupInput();
+  out.cleanup();
+  try {
+    // shmUnlink(SHM_NAME);
+  } catch {
+    console.error('Could not free shared memory');
+  }
+  process.exit(signum);
+};
+
+function resizeHandler(size: { width: number; height: number }) {
+  currentTermSize = size;
+}
+
+function inputHandler(evt: InputEvent) {
+  if (evt.type === EscapeType.Key && evt.code === 'ctrl+c') {
+    quitListening();
+    cleanup(0);
+  }
+
+  if (evt.type === EscapeType.CSI && evt.data.startsWith('4') && evt.data.endsWith('t')) {
+    const [width, height] = evt.data.slice(2, -1).split(';');
+    resizeHandler({ width: Number.parseInt(width), height: Number.parseInt(height) });
+  }
+}
+
+function setup() {
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+  process.on('SIGABRT', cleanup);
+
+  setupInput();
+  quitListening = listenForInput(inputHandler);
+
+  out.clearScreen();
+  out.placeCursor({ x: 0, y: 0 });
+  out.requestWindowSize();
+}
+
+setup();
+
+async function createWindow() {
+  const win = new BrowserWindow({
+    ...currentTermSize,
+    show: false, // Create offscreen window
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: true,
       offscreen: true,
     },
   });
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show();
+  await win.loadURL(INITIAL_URL);
+
+  // Capture window contents and paint to terminal
+  win.webContents.on('paint', (event, dirty, image) => {
+    if (exiting) return;
+
+    try {
+      const buffer = image.getBitmap();
+      shmWrite(SHM_NAME, buffer, true);
+
+      const size = { width: image.getSize().width, height: image.getSize().height };
+      const id = paintInitialFrame(SHM_NAME, size);
+    } catch (error) {
+      console.error('Error painting HN window:', error);
+    }
   });
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
-    return { action: 'deny' };
-  });
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
-  }
+  return win;
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window);
+  const window = createWindow();
+
+  app.on('window-all-closed', () => {
+    app.quit();
   });
-
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'));
-
-  createWindow();
-});
-
-app.on('window-all-closed', () => {
-  app.quit();
 });
