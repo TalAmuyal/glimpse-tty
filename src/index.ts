@@ -22,7 +22,14 @@ const INITIAL_URL = process.argv[2] || 'https://github.com/chase/awrit';
 let exiting = false;
 let quitListening = () => {};
 
-const DPI_SCALE = 2;
+const DPI_SCALE = 1.25;
+
+function scaleSize(size: { width: number; height: number }) {
+  return {
+    width: Math.floor(size.width / DPI_SCALE),
+    height: Math.floor(size.height / DPI_SCALE),
+  };
+}
 
 const cleanup = (signum = 1) => {
   exiting = true;
@@ -38,7 +45,17 @@ const cleanup = (signum = 1) => {
 };
 
 function resizeHandler(size: { width: number; height: number }) {
+  if (windowSize.width === size.width && windowSize.height === size.height) return;
+
   Object.assign(windowSize, size);
+  const win = focusedWindow.current;
+  if (!win) return;
+  /* This doesn't work for some reason
+  win.setContentSize(windowSize.width, windowSize.height, false);
+  win.setSize(windowSize.width, windowSize.height, false);
+  win.webContents.send('resize', windowSize);
+  win.webContents.invalidate();
+  */
 }
 
 function inputHandler(evt: InputEvent) {
@@ -80,13 +97,13 @@ setup();
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: Math.floor(windowSize.width / DPI_SCALE),
-    height: Math.floor(windowSize.height / DPI_SCALE),
+    ...scaleSize(windowSize),
     show: false,
     useContentSize: true,
     webPreferences: {
       offscreen: true,
     },
+    paintWhenInitiallyHidden: true,
     transparent: true,
     backgroundColor: '#00000000',
   });
