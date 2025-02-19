@@ -2,8 +2,8 @@ import type { Session as ElectronSession } from 'electron';
 import { installExtension } from 'electron-chrome-web-store';
 
 const CHROME_WEB_STORE_EXTENSIONS = [
-  // uBlock Origin
-  'cjpalhdlnbpafiamejdnhcphjbkeiagm',
+  // uBlock Origin Lite
+  'ddkjiahejlhfcafbddmgiahcphecmpfh',
 ];
 
 export async function installExtensions(session: ElectronSession) {

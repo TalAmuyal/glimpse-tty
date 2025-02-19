@@ -102,7 +102,7 @@ function setup() {
 
 setup();
 
-function createWindow() {
+async function createWindow() {
   const session = ElectronSession.fromPartition('persist:custom');
   const extensions = new ElectronChromeExtensions({
     session,
@@ -125,7 +125,7 @@ function createWindow() {
     backgroundColor: '#00000000',
   });
   extensions.addTab(win.webContents, win);
-  installExtensions(session);
+  await installExtensions(session);
 
   win.loadURL(INITIAL_URL);
   managedWindows.push(win);
