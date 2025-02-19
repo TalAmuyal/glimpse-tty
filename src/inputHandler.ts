@@ -16,6 +16,30 @@ function handleMouseButton(buttons: number) {
   return;
 }
 
+const SHIFT_MAP = {
+  '0': ')',
+  '1': '!',
+  '2': '@',
+  '3': '#',
+  '4': '$',
+  '5': '%',
+  '6': '^',
+  '7': '&',
+  '8': '*',
+  '9': '(',
+  '-': '_',
+  '=': '+',
+  '[': '{',
+  ']': '}',
+  '\\': '|',
+  ';': ':',
+  "'": '"',
+  ',': '<',
+  '.': '>',
+  '/': '?',
+  '`': '~',
+};
+
 export function handleInput(evt: InputEvent) {
   if (evt.type !== EscapeType.Key && evt.type !== EscapeType.Mouse) return;
 
@@ -29,14 +53,17 @@ export function handleInput(evt: InputEvent) {
       if (evt.event === KeyEvent.Unicode) {
         win.webContents.insertText(evt.code);
       } else if (evt.event === KeyEvent.Down && evt.code.length === 1) {
+        const keyCode = evt.modifiers.includes('shift')
+          ? SHIFT_MAP[evt.code as keyof typeof SHIFT_MAP] ?? evt.code.toUpperCase()
+          : evt.code;
         win.webContents.sendInputEvent({
           type: 'rawKeyDown',
-          keyCode: evt.code,
+          keyCode,
           modifiers: evt.modifiers,
         });
         win.webContents.sendInputEvent({
           type: 'char',
-          keyCode: evt.code,
+          keyCode,
           modifiers: evt.modifiers,
         });
       } else {
