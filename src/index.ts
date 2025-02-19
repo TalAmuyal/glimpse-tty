@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, session as ElectronSession } from 'electron';
 import {
   shmUnlink,
   shmWrite,
@@ -13,6 +13,13 @@ import { paintInitialFrame, loadFrame, compositeFrame } from './tty/kittyGraphic
 import * as out from './tty/output';
 import { handleInput } from './inputHandler';
 import { focusedWindow, managedWindows, windowSize } from './windows';
+import { ElectronChromeExtensions } from 'electron-chrome-extensions';
+import path from 'node:path';
+import { installExtensions } from './extensions';
+
+const originalConsole = { ...console };
+// Disable all console logging
+console.log = console.error = console.warn = () => {};
 
 const FRAME_NAME = '/frame-' + randomBytes(4).toString('hex');
 const SPARE_FRAME_NAME = '/spare-frame-' + randomBytes(4).toString('hex');
@@ -96,17 +103,29 @@ function setup() {
 setup();
 
 function createWindow() {
+  const session = ElectronSession.fromPartition('persist:custom');
+  const extensions = new ElectronChromeExtensions({
+    session,
+    license: 'GPL-3.0',
+    modulePath: path.join(__dirname, '../node_modules/electron-chrome-extensions'),
+  });
+
   const win = new BrowserWindow({
     ...scaleSize(windowSize),
     show: false,
     useContentSize: true,
     webPreferences: {
       offscreen: true,
+      session,
+      sandbox: true,
+      contextIsolation: true,
     },
     paintWhenInitiallyHidden: true,
     transparent: true,
     backgroundColor: '#00000000',
   });
+  extensions.addTab(win.webContents, win);
+  installExtensions(session);
 
   win.loadURL(INITIAL_URL);
   managedWindows.push(win);
@@ -142,5 +161,11 @@ function createWindow() {
 // Prevents high DPI scaling based on host display
 app.commandLine.appendSwitch('force-device-scale-factor', DPI_SCALE.toString());
 app.commandLine.appendSwitch('high-dpi-support', 'true');
+
+// Disable Electron's stdout logging
+app.commandLine.appendSwitch('log-level', '0');
+app.commandLine.appendSwitch('disable-logging');
+// Disable Chrome DevTools logging
+app.commandLine.appendSwitch('silent-debugger-extension-api');
 
 app.whenReady().then(createWindow);
