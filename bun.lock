@@ -32,10 +32,13 @@
     },
   },
   "trustedDependencies": [
+    "electron",
+    "esbuild",
     "awrit-native",
     "@biomejs/biome",
   ],
   "patchedDependencies": {
+    "lru-cache@5.1.1": "patches/lru-cache@5.1.1.patch",
     "solid-js@1.9.5": "patches/solid-js@1.9.5.patch",
   },
   "packages": {
