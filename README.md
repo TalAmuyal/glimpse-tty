@@ -19,6 +19,7 @@ Yep, actual Chromium being rendered in your favorite terminal that supports the 
 
 ``` bash
 git clone https://github.com/chase/awrit.git
+cd awrit
 ./awrit
 ```
 
