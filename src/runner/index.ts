@@ -26,6 +26,12 @@ await $`mkdir -p dist && ln -s ${join(root, 'node_modules/awrit-native/prebuilds
     process.exit(1);
   }
 }
+try {
+  const css = getKittyColorsAsCSS(true);
+  await Bun.write(join(root, 'dist/kitty.css'), css);
+} catch {
+  console.error('Failed to get kitty colors');
+}
 
 if (!(await Bun.file(join(root, 'dist/toolbar/index.html')).exists())) {
   console.error('building toolbar');
@@ -34,12 +40,6 @@ if (!(await Bun.file(join(root, 'dist/toolbar/index.html')).exists())) {
     .quiet();
 }
 
-try {
-  const css = getKittyColorsAsCSS(true);
-  await Bun.write(join(root, 'dist/kitty.css'), css);
-} catch {
-  console.error('Failed to get kitty colors');
-}
 
 const children: [string, Subprocess][] = [];
 const isDev = process.argv.includes('--dev') || process.argv.includes('-d');

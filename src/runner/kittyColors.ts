@@ -11,15 +11,28 @@ function toKebabCase(str: string): string {
 /** Get kitty colors and transform them to CSS variables */
 export function getKittyColorsAsCSS(tailwind = false): string {
   try {
-    // Run the kitty command and get the output
-    const output = execSync('kitten @ get-colors').toString();
-
+    // Get current terminal
+    const terminal = process.env.TERM;
+    var command = 'kitten @ get-colors';
+    var delimiter = /\s+/;
+    switch (terminal) {
+      case 'xterm-kitty':
+        break;
+      case 'xterm-ghostty':
+        command = 'ghostty +list-colors';
+        delimiter = /\s=\s/;
+        break;
+      default:
+        console.error('Unsupported terminal:', terminal);
+        return '';
+    }
+    const output = execSync(command).toString();
     // Process each line
     const cssVars = output
       .split('\n')
       .filter((line) => line.trim())
       .map((line) => {
-        const [name, value] = line.split(/\s+/);
+        const [name, value] = line.split(delimiter);
         if (name === 'foreground') {
           return `  --color-kitty-fg: ${value};`;
         }
