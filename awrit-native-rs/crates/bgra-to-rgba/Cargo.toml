@@ -1,0 +1,15 @@
+[package]
+name = "bgra-to-rgba"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+criterion = { version = "0.5.1", optional = true }
+rayon = "1.8"
+
+[features]
+bench = ["dep:criterion"]
+
+[[bench]]
+name = "bgra_to_rgba"
+harness = false
