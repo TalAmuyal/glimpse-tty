@@ -153,6 +153,18 @@ unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) { unsafe {
 }}
 
 #[cfg(target_arch = "aarch64")]
+#[inline(always)]
+unsafe fn prefetch(ptr: *const u8) {
+    // On aarch64, we use PRFM (prefetch memory) instruction
+    // This is equivalent to __builtin_prefetch
+    core::arch::asm!(
+        "prfm pldl1keep, [{0}]",
+        in(reg) ptr,
+        options(nostack, readonly)
+    );
+}
+
+#[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) {
   const ALIGN_SIZE: usize = 16;
@@ -185,7 +197,7 @@ unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) {
 
     // Prefetch next chunk if we're not at the end
     if i + 2 * ALIGN_SIZE <= len {
-      __builtin_prefetch(src_ptr.add(i + ALIGN_SIZE) as *const i8, 0, 0);
+      prefetch(src_ptr.add(i + ALIGN_SIZE));
     }
   }
 
@@ -198,27 +210,31 @@ unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) {
   }
 }
 
-// NEON aligned load/store helpers
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 unsafe fn vld1q_u8_aligned(ptr: *const u8) -> uint8x16_t {
-  let mut result: uint8x16_t;
-  std::ptr::copy_nonoverlapping(ptr, &mut result as *mut _ as *mut u8, 16);
-  result
+    // Initialize result with zeros to avoid uninitialized memory
+    let mut result: uint8x16_t = vdupq_n_u8(0);
+    unsafe {
+        std::ptr::copy_nonoverlapping(ptr, &mut result as *mut _ as *mut u8, 16);
+    }
+    result
 }
 
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 unsafe fn vst1q_u8_aligned(ptr: *mut u8, val: uint8x16_t) {
-  std::ptr::copy_nonoverlapping(&val as *const _ as *const u8, ptr, 16);
+    unsafe {
+        std::ptr::copy_nonoverlapping(&val as *const _ as *const u8, ptr, 16);
+    }
 }
 
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
 unsafe fn vst1q_u8_nontemporal(ptr: *mut u8, val: uint8x16_t) {
-  // On ARM, we can use DC ZVA instruction for non-temporal stores
-  // This is equivalent to _mm_stream_si128 on x86
-  std::ptr::write_volatile(ptr as *mut uint8x16_t, val);
+    unsafe {
+        std::ptr::write_volatile(ptr as *mut uint8x16_t, val);
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -328,7 +344,7 @@ unsafe fn bgra_to_rgba_rect_chunk(
     if y + 1 < rect_height {
       let next_src_row = src_row + src_stride;
       for x in (0..simd_width * BYTES_PER_PIXEL).step_by(64) {
-        __builtin_prefetch(src_ptr.add(next_src_row + x) as *const i8, 0, 3);
+        prefetch(src_ptr.add(next_src_row + x));
       }
     }
 
@@ -339,7 +355,7 @@ unsafe fn bgra_to_rgba_rect_chunk(
 
       // Prefetch next chunk in current row
       if x + ALIGN_SIZE < simd_width * BYTES_PER_PIXEL {
-        __builtin_prefetch(src_ptr.add(src_offset + ALIGN_SIZE) as *const i8, 0, 3);
+        prefetch(src_ptr.add(src_offset + ALIGN_SIZE));
       }
 
       let bgra = vld1q_u8(src_ptr.add(src_offset));
