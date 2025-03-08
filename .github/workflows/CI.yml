@@ -56,6 +56,9 @@ jobs:
               yarn make --target aarch64-unknown-linux-musl
     name: stable - ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        working-directory: awrit-native-rs
     steps:
       - uses: actions/checkout@v4
       - name: Setup node
@@ -65,6 +68,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
           cache-dependency-path: awrit-native-rs/yarn.lock
+      - name: Install dependencies
+        if: ${{ !matrix.settings.docker }}
+        run: yarn install
       - name: Install
         uses: dtolnay/rust-toolchain@stable
         if: ${{ !matrix.settings.docker }}
@@ -94,7 +100,7 @@ jobs:
         if: ${{ matrix.settings.docker }}
         with:
           image: ${{ matrix.settings.docker }}
-          options: '--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build'
+          options: '--user 0:0 -v ${{ github.workspace }}/awrit-native-rs/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/awrit-native-rs/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/awrit-native-rs/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}/awrit-native-rs:/build -w /build'
           run: ${{ matrix.settings.build }}
       - name: Build
         run: ${{ matrix.settings.build }}
@@ -104,7 +110,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: ${{ env.APP_NAME }}.*.node
+          path: awrit-native-rs/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
 
   publish:
@@ -112,6 +118,9 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
+    defaults:
+      run:
+        working-directory: awrit-native-rs
     steps:
       - uses: actions/checkout@v4
       - name: Setup node
@@ -124,18 +133,18 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: awrit-native-rs/artifacts
       - name: Get version
         id: get_version
         run: |
-          VERSION=$(node -p "require('./awrit-native-rs/package.json').version")
+          VERSION=$(node -p "require('./package.json').version")
           echo "version=awrit-native-rs-${VERSION}" >> $GITHUB_OUTPUT
       - name: Create Release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.get_version.outputs.version }}
           name: ${{ steps.get_version.outputs.version }}
-          artifacts: "artifacts/*.node"
+          artifacts: "awrit-native-rs/artifacts/**/*.node"
           allowUpdates: true
           makeLatest: true
           generateReleaseNotes: false
