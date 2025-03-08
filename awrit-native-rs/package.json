@@ -3,6 +3,7 @@
   "version": "2.0.0",
   "main": "index.js",
   "types": "index.d.ts",
+  "license": "BSD-3-Clause",
   "napi": {
     "name": "awrit-native-rs",
     "triples": {
@@ -17,7 +18,6 @@
       ]
     }
   },
-  "license": "MIT",
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4"
   },

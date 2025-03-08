@@ -4,6 +4,7 @@
   "description": "A full graphical web browser for Kitty terminal with mouse and keyboard support",
   "main": "index.js",
   "author": "Chase Colman",
+  "license": "BSD-3-Clause",
   "homepage": "https://github.com/chase/awrit",
   "engines": {
     "node": ">=22.11.0"

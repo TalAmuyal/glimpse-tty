@@ -10,7 +10,7 @@ permissions:
 'on':
   push:
     branches:
-      - main
+      - electron
     tags-ignore:
       - '**'
     paths:
@@ -64,6 +64,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
+          cache-dependency-path: awrit-native-rs/yarn.lock
       - name: Install
         uses: dtolnay/rust-toolchain@stable
         if: ${{ !matrix.settings.docker }}
