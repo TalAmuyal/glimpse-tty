@@ -85,12 +85,8 @@
 
 use std::{fmt, io};
 
-#[cfg(windows)]
-use crossterm_winapi::{ConsoleMode, Handle, ScreenBuffer};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(windows)]
-use winapi::um::wincon::ENABLE_WRAP_AT_EOL_OUTPUT;
 
 #[doc(no_inline)]
 use crate::Command;
@@ -111,15 +107,7 @@ pub use sys::KittyGraphicsSupport;
 ///
 /// Please have a look at the [raw mode](./index.html#raw-mode) section.
 pub fn is_raw_mode_enabled() -> io::Result<bool> {
-    #[cfg(unix)]
-    {
-        Ok(sys::is_raw_mode_enabled())
-    }
-
-    #[cfg(windows)]
-    {
-        sys::is_raw_mode_enabled()
-    }
+    Ok(sys::is_raw_mode_enabled())
 }
 
 /// Enables raw mode.
@@ -155,7 +143,6 @@ pub struct WindowSize {
 ///
 /// The width and height in pixels may not be reliably implemented or default to 0.
 /// For unix, <https://man7.org/linux/man-pages/man4/tty_ioctl.4.html> documents them as "unused".
-/// For windows it is not implemented.
 pub fn window_size() -> io::Result<WindowSize> {
     sys::window_size()
 }
@@ -168,15 +155,6 @@ impl Command for DisableLineWrap {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?7l"))
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        let screen_buffer = ScreenBuffer::current()?;
-        let console_mode = ConsoleMode::from(screen_buffer.handle().clone());
-        let new_mode = console_mode.mode()? & !ENABLE_WRAP_AT_EOL_OUTPUT;
-        console_mode.set_mode(new_mode)?;
-        Ok(())
-    }
 }
 
 /// Enable line wrapping.
@@ -186,15 +164,6 @@ pub struct EnableLineWrap;
 impl Command for EnableLineWrap {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?7h"))
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        let screen_buffer = ScreenBuffer::current()?;
-        let console_mode = ConsoleMode::from(screen_buffer.handle().clone());
-        let new_mode = console_mode.mode()? | ENABLE_WRAP_AT_EOL_OUTPUT;
-        console_mode.set_mode(new_mode)?;
-        Ok(())
     }
 }
 
@@ -227,13 +196,6 @@ impl Command for EnterAlternateScreen {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?1049h"))
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        let alternate_screen = ScreenBuffer::create()?;
-        alternate_screen.show()?;
-        Ok(())
-    }
 }
 
 /// A command that switches back to the main screen.
@@ -264,13 +226,6 @@ pub struct LeaveAlternateScreen;
 impl Command for LeaveAlternateScreen {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?1049l"))
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        let screen_buffer = ScreenBuffer::from(Handle::current_out_handle()?);
-        screen_buffer.show()?;
-        Ok(())
     }
 }
 
@@ -307,11 +262,6 @@ impl Command for ScrollUp {
         }
         Ok(())
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        sys::scroll_up(self.0)
-    }
 }
 
 /// A command that scrolls the terminal screen a given number of rows down.
@@ -328,11 +278,6 @@ impl Command for ScrollDown {
             write!(f, csi!("{}T"), self.0)?;
         }
         Ok(())
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        sys::scroll_down(self.0)
     }
 }
 
@@ -357,11 +302,6 @@ impl Command for Clear {
             ClearType::UntilNewLine => csi!("K"),
         })
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        sys::clear(self.0)
-    }
 }
 
 /// A command that sets the terminal buffer size `(columns, rows)`.
@@ -376,11 +316,6 @@ impl Command for SetSize {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         write!(f, csi!("8;{};{}t"), self.1, self.0)
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        sys::set_size(self.0, self.1)
-    }
 }
 
 /// A command that sets the terminal title
@@ -394,11 +329,6 @@ pub struct SetTitle<T>(pub T);
 impl<T: fmt::Display> Command for SetTitle<T> {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         write!(f, "\x1B]0;{}\x07", &self.0)
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        sys::set_window_title(&self.0)
     }
 }
 
@@ -442,17 +372,6 @@ impl Command for BeginSynchronizedUpdate {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?2026h"))
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        Ok(())
-    }
-
-    #[cfg(windows)]
-    #[inline]
-    fn is_ansi_code_supported(&self) -> bool {
-        true
-    }
 }
 
 /// A command that instructs the terminal to end a synchronized frame.
@@ -494,17 +413,6 @@ pub struct EndSynchronizedUpdate;
 impl Command for EndSynchronizedUpdate {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?2026l"))
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> io::Result<()> {
-        Ok(())
-    }
-
-    #[cfg(windows)]
-    #[inline]
-    fn is_ansi_code_supported(&self) -> bool {
-        true
     }
 }
 

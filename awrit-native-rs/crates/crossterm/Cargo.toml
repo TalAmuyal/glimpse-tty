@@ -30,9 +30,6 @@ bracketed-paste = []
 ## Enables reading input/events from the system using the [`event`] module.
 events = ["dep:mio", "dep:signal-hook", "dep:signal-hook-mio"]
 
-## Enables windows specific crates.
-windows = ["dep:winapi", "dep:crossterm_winapi"]
-
 #! ### Optional Features
 
 ## Enables the [EventStream](event::EventStream) struct for async event reading.
@@ -54,14 +51,6 @@ document-features = "0.2.10"
 futures-core = { version = "0.3", optional = true, default-features = false }
 parking_lot = "0.12"
 serde = { version = "1.0", features = ["derive"], optional = true }
-
-# Windows dependencies
-[target.'cfg(windows)'.dependencies]
-crossterm_winapi = { version = "0.9.1", optional = true }
-winapi = { version = "0.3.9", optional = true, features = [
-    "winuser",
-    "winerror",
-] }
 
 # UNIX dependencies
 [target.'cfg(unix)'.dependencies]

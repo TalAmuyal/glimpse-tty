@@ -50,14 +50,8 @@ impl Filter for PrimaryDeviceAttributesFilter {
 pub(crate) struct EventFilter;
 
 impl Filter for EventFilter {
-    #[cfg(unix)]
     fn eval(&self, event: &InternalEvent) -> bool {
         matches!(*event, InternalEvent::Event(_))
-    }
-
-    #[cfg(windows)]
-    fn eval(&self, _: &InternalEvent) -> bool {
-        true
     }
 }
 

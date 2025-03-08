@@ -335,16 +335,6 @@ impl Command for EnableMouseCapture {
             csi!("?1016h"),
         ))
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::windows::enable_mouse_capture()
-    }
-
-    #[cfg(windows)]
-    fn is_ansi_code_supported(&self) -> bool {
-        false
-    }
 }
 
 /// A command that disables mouse event capturing.
@@ -365,16 +355,6 @@ impl Command for DisableMouseCapture {
             csi!("?1000l"),
         ))
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::windows::disable_mouse_capture()
-    }
-
-    #[cfg(windows)]
-    fn is_ansi_code_supported(&self) -> bool {
-        false
-    }
 }
 
 /// A command that enables focus event emission.
@@ -389,12 +369,6 @@ impl Command for EnableFocusChange {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?1004h"))
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        // Focus events are always enabled on Windows
-        Ok(())
-    }
 }
 
 /// A command that disables focus event emission.
@@ -404,12 +378,6 @@ pub struct DisableFocusChange;
 impl Command for DisableFocusChange {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?1004l"))
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        // Focus events can't be disabled on Windows
-        Ok(())
     }
 }
 
@@ -428,14 +396,6 @@ impl Command for EnableBracketedPaste {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?2004h"))
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            "Bracketed paste not implemented in the legacy Windows API.",
-        ))
-    }
 }
 
 /// A command that disables bracketed paste mode.
@@ -447,11 +407,6 @@ pub struct DisableBracketedPaste;
 impl Command for DisableBracketedPaste {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?2004l"))
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        Ok(())
     }
 }
 
@@ -499,21 +454,6 @@ impl Command for PushKeyboardEnhancementFlags {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         write!(f, "{}{}u", csi!(">"), self.0.bits())
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        use std::io;
-
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "Keyboard progressive enhancement not implemented for the legacy Windows API.",
-        ))
-    }
-
-    #[cfg(windows)]
-    fn is_ansi_code_supported(&self) -> bool {
-        false
-    }
 }
 
 /// A command that disables extra kinds of keyboard events.
@@ -527,21 +467,6 @@ pub struct PopKeyboardEnhancementFlags;
 impl Command for PopKeyboardEnhancementFlags {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("<1u"))
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        use std::io;
-
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "Keyboard progressive enhancement not implemented for the legacy Windows API.",
-        ))
-    }
-
-    #[cfg(windows)]
-    fn is_ansi_code_supported(&self) -> bool {
-        false
     }
 }
 
@@ -890,10 +815,6 @@ impl Display for KeyModifiers {
     /// "Command" respectively. See
     /// <https://support.apple.com/guide/applestyleguide/welcome/1.0/web>.
     ///
-    /// On Windows, the super key is displayed as "Windows" and the control key is displayed as
-    /// "Ctrl". See
-    /// <https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/term-collections/keys-keyboard-shortcuts>.
-    ///
     /// On other platforms, the super key is referred to as "Super" and the control key is
     /// displayed as "Ctrl".
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -905,9 +826,6 @@ impl Display for KeyModifiers {
             }
             match modifier {
                 KeyModifiers::SHIFT => f.write_str("Shift")?,
-                #[cfg(unix)]
-                KeyModifiers::CONTROL => f.write_str("Control")?,
-                #[cfg(windows)]
                 KeyModifiers::CONTROL => f.write_str("Ctrl")?,
                 #[cfg(target_os = "macos")]
                 KeyModifiers::ALT => f.write_str("Option")?,
@@ -915,9 +833,7 @@ impl Display for KeyModifiers {
                 KeyModifiers::ALT => f.write_str("Alt")?,
                 #[cfg(target_os = "macos")]
                 KeyModifiers::SUPER => f.write_str("Command")?,
-                #[cfg(target_os = "windows")]
-                KeyModifiers::SUPER => f.write_str("Windows")?,
-                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+                #[cfg(not(target_os = "macos"))]
                 KeyModifiers::SUPER => f.write_str("Super")?,
                 KeyModifiers::HYPER => f.write_str("Hyper")?,
                 KeyModifiers::META => f.write_str("Meta")?,
@@ -1196,11 +1112,7 @@ impl Display for ModifierKeyCode {
     /// "Command" respectively. See
     /// <https://support.apple.com/guide/applestyleguide/welcome/1.0/web>.
     ///
-    /// On Windows, the super key is displayed as "Windows" and the control key is displayed as
-    /// "Ctrl". See
-    /// <https://learn.microsoft.com/en-us/style-guide/a-z-word-list-term-collections/term-collections/keys-keyboard-shortcuts>.
-    ///
-    /// On other platforms, the super key is referred to as "Super".
+    /// On other platforms, the super key is referred to as "Super"
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ModifierKeyCode::LeftShift => write!(f, "Left Shift"),
@@ -1224,9 +1136,7 @@ impl Display for ModifierKeyCode {
 
             #[cfg(target_os = "macos")]
             ModifierKeyCode::LeftSuper => write!(f, "Left Command"),
-            #[cfg(target_os = "windows")]
-            ModifierKeyCode::LeftSuper => write!(f, "Left Windows"),
-            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+            #[cfg(not(target_os = "macos"))]
             ModifierKeyCode::LeftSuper => write!(f, "Left Super"),
 
             #[cfg(target_os = "macos")]
@@ -1241,9 +1151,7 @@ impl Display for ModifierKeyCode {
 
             #[cfg(target_os = "macos")]
             ModifierKeyCode::RightSuper => write!(f, "Right Command"),
-            #[cfg(target_os = "windows")]
-            ModifierKeyCode::RightSuper => write!(f, "Right Windows"),
-            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+            #[cfg(not(target_os = "macos"))]
             ModifierKeyCode::RightSuper => write!(f, "Right Super"),
         }
     }
@@ -1634,18 +1542,7 @@ mod tests {
         assert_eq!(format!("{}", Modifier(RightSuper)), "Right Command");
     }
 
-    #[cfg(target_os = "windows")]
-    #[test]
-    fn modifier_keycode_display_windows() {
-        assert_eq!(format!("{}", Modifier(LeftControl)), "Left Ctrl");
-        assert_eq!(format!("{}", Modifier(LeftAlt)), "Left Alt");
-        assert_eq!(format!("{}", Modifier(LeftSuper)), "Left Windows");
-        assert_eq!(format!("{}", Modifier(RightControl)), "Right Ctrl");
-        assert_eq!(format!("{}", Modifier(RightAlt)), "Right Alt");
-        assert_eq!(format!("{}", Modifier(RightSuper)), "Right Windows");
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(not(target_os = "macos"))]
     #[test]
     fn modifier_keycode_display_other() {
         assert_eq!(format!("{}", Modifier(LeftControl)), "Left Ctrl");
