@@ -21,14 +21,10 @@
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4"
   },
-  "ava": {
-    "timeout": "3m"
-  },
   "scripts": {
     "artifacts": "napi artifacts",
-    "make": "napi build --platform --release",
-    "make:debug": "napi build --platform",
-    "convert-types": "node scripts/convert-types.js",
-    "prepublishOnly": "napi prepublish -t npm"
+    "make": "napi build --platform --release && node scripts/convert-types.js",
+    "ci": "napi build --platform --release",
+    "make:debug": "napi build --platform"
   }
 }
