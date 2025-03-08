@@ -21,6 +21,7 @@ permissions:
       - 'awrit-native-rs/crates/**/*.rs'
       - 'awrit-native-rs/src/Cargo.*'
       - 'awrit-native-rs/crates/**/Cargo.*'
+      - '.github/workflows/CI.yml'
   pull_request: null
 jobs:
   build:
@@ -53,7 +54,7 @@ jobs:
               set -e &&
               rustup target add aarch64-unknown-linux-musl &&
               yarn make --target aarch64-unknown-linux-musl
-    name: stable - ${{ matrix.settings.target }} - node@${{ env.NODE_VERSION }}
+    name: stable - ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v4
