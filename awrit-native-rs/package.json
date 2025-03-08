@@ -26,8 +26,9 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
-    "make": "napi build --platform --release && node scripts/convert-types.js",
-    "make:debug": "napi build --platform && node scripts/convert-types.js",
+    "make": "napi build --platform --release",
+    "make:debug": "napi build --platform",
+    "convert-types": "node scripts/convert-types.js",
     "prepublishOnly": "napi prepublish -t npm"
   }
 }
