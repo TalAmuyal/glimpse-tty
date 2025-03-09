@@ -138,26 +138,6 @@ impl From<Event> for TermEvent {
         }
       }
       Event::Mouse(mouse) => {
-        if mouse.x == u16::MAX || mouse.y == u16::MAX {
-          return TermEvent {
-            event_type: "mouse".to_string(),
-            key_event: None,
-            mouse_event: Some(MouseEvent {
-              kind: "mouseLeave".to_string(),
-              button: None,
-              modifiers: Vec::new(),
-              x: 0,
-              y: 0,
-            }),
-            focus_gained: None,
-            focus_lost: None,
-            resize: None,
-            paste: None,
-            escape: None,
-            graphics: None,
-          };
-        }
-
         let mut mod_vec = Vec::new();
         let mods = mouse.modifiers;
 
