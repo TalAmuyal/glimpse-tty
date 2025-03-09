@@ -100,8 +100,15 @@ impl ShmGraphicBuffer {
     dirty_rect: Option<DirtyRect>,
   ) -> napi::Result<()> {
     // Open shared memory
-    let fd = shm_open(self.name(), OFlag::O_RDWR, Mode::S_IRUSR | Mode::S_IWUSR)
-      .map_err(|e| napi::Error::from_reason(format!("Failed to open shared memory: {}", e)))?;
+    let fd = shm_open(
+      self.name(),
+      OFlag::O_CREAT | OFlag::O_RDWR,
+      Mode::S_IRUSR | Mode::S_IWUSR,
+    )
+    .map_err(|e| napi::Error::from_reason(format!("Failed to open shared memory: {}", e)))?;
+
+    ftruncate(&fd, self.size as i64)
+      .map_err(|e| napi::Error::from_reason(format!("Failed to truncate shared memory: {}", e)))?;
 
     let size = NonZeroUsize::new(self.size as usize)
       .ok_or_else(|| napi::Error::from_reason("Size must be non-zero"))?;

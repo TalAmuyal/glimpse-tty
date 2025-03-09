@@ -19,7 +19,6 @@
     "@napi-rs/cli": "^2.18.4"
   },
 	"scripts": {
-		"install": "./run-shim scripts/download-binary.js",
 		"artifacts": "napi artifacts",
 		"make": "napi build --platform --release && ./run-shim scripts/fix-types.js",
 		"ci": "napi build --platform --release",

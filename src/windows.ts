@@ -10,8 +10,7 @@ import { registerPaintedContent } from './paint';
 import { sessionPromise } from './session';
 import { extensionsPromise, installedExtensionsPromise } from './extensions';
 import { type InitialFrame, paintInitialFrame } from './tty/kittyGraphics';
-import { randomBytes } from 'node:crypto';
-import { ShmGraphicBuffer } from 'awrit-native';
+import { ShmGraphicBuffer } from 'awrit-native-rs';
 import { scaleSize } from './dpi';
 import { options } from './args';
 import { console_ } from './console';
@@ -57,16 +56,14 @@ export async function createWindowWithToolbar(
   size: { width: number; height: number },
   initialUrl = 'https://github.com/chase/awrit',
 ): Promise<WindowView> {
-  const id = randomBytes(16).toString('hex');
-  const containerName = `awrit-${id}`;
-  const containerBuffer = new ShmGraphicBuffer(containerName);
   // this deals with the DPI scale rounding error causing the buffer to be too small
   const scaledSize = {
     width: size.width + 3,
     height: size.height + 3,
   };
-  containerBuffer.write(Buffer.alloc(scaledSize.width * scaledSize.height * 4), scaledSize);
-  const containerFrame = paintInitialFrame(containerName, scaledSize);
+  const containerBuffer = new ShmGraphicBuffer(scaledSize.width * scaledSize.height * 4);
+  containerBuffer.writeEmpty();
+  const containerFrame = paintInitialFrame(containerBuffer, scaledSize);
 
   const transparentWindowSettings = {
     transparent: true,
