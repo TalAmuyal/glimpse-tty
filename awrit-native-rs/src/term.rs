@@ -7,6 +7,7 @@ use crossterm::{
   execute, queue,
   terminal::{
     disable_raw_mode, enable_raw_mode, query_kitty_graphics_support, supports_keyboard_enhancement,
+    window_size,
   },
 };
 
@@ -16,6 +17,14 @@ pub struct SupportedFeatures {
   pub images: bool,
   pub load_frame: bool,
   pub composite_frame: bool,
+}
+
+#[napi(object)]
+pub struct WindowSize {
+  pub cols: u16,
+  pub rows: u16,
+  pub width: u16,
+  pub height: u16,
 }
 
 #[napi]
@@ -76,4 +85,17 @@ pub fn term_disable_features(features: SupportedFeatures) -> napi::Result<()> {
   }
 
   disable_raw_mode().map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
+#[napi]
+/// Get the current terminal window size
+pub fn get_window_size() -> napi::Result<WindowSize> {
+  let size = window_size().map_err(|e| napi::Error::from_reason(e.to_string()))?;
+
+  Ok(WindowSize {
+    cols: size.columns,
+    rows: size.rows,
+    width: size.width,
+    height: size.height,
+  })
 }

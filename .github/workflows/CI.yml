@@ -11,8 +11,6 @@ permissions:
   push:
     branches:
       - electron
-    tags-ignore:
-      - '**'
     paths:
       - 'awrit-native-rs/package.json'
       - 'awrit-native-rs/Cargo.*'
@@ -22,7 +20,6 @@ permissions:
       - 'awrit-native-rs/src/Cargo.*'
       - 'awrit-native-rs/crates/**/Cargo.*'
       - '.github/workflows/CI.yml'
-  pull_request: null
 jobs:
   build:
     strategy:
@@ -31,13 +28,13 @@ jobs:
         settings:
           - host: macos-latest
             target: x86_64-apple-darwin
-            build: yarn make --target x86_64-apple-darwin
+            build: yarn ci --target x86_64-apple-darwin
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            build: yarn make --target x86_64-unknown-linux-gnu
+            build: yarn ci --target x86_64-unknown-linux-gnu
           - host: macos-latest
             target: aarch64-apple-darwin
-            build: yarn make --target aarch64-apple-darwin
+            build: yarn ci --target aarch64-apple-darwin
     name: stable - ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     defaults:

@@ -3,9 +3,7 @@ use crossterm::event::{
   MouseEventKind, Sequence,
 };
 use napi::{
-  bindgen_prelude::*,
-  threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode},
-  Env, JsFunction,
+  bindgen_prelude::*, threadsafe_function::ThreadsafeFunctionCallMode, Env, Result, Status,
 };
 use std::{
   sync::atomic::{AtomicBool, Ordering},
@@ -34,19 +32,19 @@ pub struct KeyEvent {
   pub code: String,
   /// Array of modifier strings in Electron accelerator format
   #[napi(
-    ts_type = "('ctrl' | 'alt' | 'shift' | 'meta' | 'capslock' | 'numlock' | 'left' | 'right' | 'isautorepeat')[]"
+    ts_type = "('ctrl' | 'alt' | 'shift' | 'meta' | 'capsLock' | 'numLock' | 'left' | 'right' | 'isAutoRepeat')[]"
   )]
   pub modifiers: Vec<String>,
   /// True for keydown and repeat events, false for keyup
   pub down: bool,
-  /// True for keys that should have a keydown event
-  pub with_keydown: bool,
+  /// True for keys that should have an Electron char event
+  pub is_char_event: bool,
 }
 
 #[napi(object)]
 pub struct MouseEvent {
   #[napi(
-    ts_type = "'mousedown' | 'mouseup' | 'mousemove' | 'scrollup' | 'scrolldown' | 'scrollleft' | 'scrollright'"
+    ts_type = "'mouseDown' | 'mouseUp' | 'mouseMove' | 'scrollUp' | 'scrollDown' | 'scrollLeft' | 'scrollRight'"
   )]
   pub kind: String,
   #[napi(ts_type = "'left' | 'middle' | 'right' | 'fourth' | 'fifth' | null")]
@@ -84,7 +82,7 @@ impl From<Event> for TermEvent {
   fn from(event: Event) -> Self {
     match event {
       Event::Key(key) => {
-        let (code, with_keydown, left_right) = translate_key_code(&key.code);
+        let (code, is_char_event, left_right) = translate_key_code(&key.code);
         let mut mod_vec = Vec::new();
         let mods = key.modifiers;
 
@@ -102,10 +100,10 @@ impl From<Event> for TermEvent {
           mod_vec.push("meta".to_string());
         }
         if mods.contains(KeyModifiers::CAPS_LOCK) {
-          mod_vec.push("capslock".to_string());
+          mod_vec.push("capsLock".to_string());
         }
         if mods.contains(KeyModifiers::NUM_LOCK) {
-          mod_vec.push("numlock".to_string());
+          mod_vec.push("numLock".to_string());
         }
 
         // Add left/right modifiers if present
@@ -119,7 +117,7 @@ impl From<Event> for TermEvent {
           crossterm::event::KeyEventKind::Release => false,
         };
         if matches!(key.kind, crossterm::event::KeyEventKind::Repeat) {
-          mod_vec.push("isautorepeat".to_string());
+          mod_vec.push("isAutoRepeat".to_string());
         }
 
         TermEvent {
@@ -128,7 +126,7 @@ impl From<Event> for TermEvent {
             code,
             modifiers: mod_vec,
             down,
-            with_keydown,
+            is_char_event,
           }),
           mouse_event: None,
           focus_gained: None,
@@ -140,26 +138,6 @@ impl From<Event> for TermEvent {
         }
       }
       Event::Mouse(mouse) => {
-        if mouse.x == u16::MAX || mouse.y == u16::MAX {
-          return TermEvent {
-            event_type: "mouse".to_string(),
-            key_event: None,
-            mouse_event: Some(MouseEvent {
-              kind: "mouseleave".to_string(),
-              button: None,
-              modifiers: Vec::new(),
-              x: 0,
-              y: 0,
-            }),
-            focus_gained: None,
-            focus_lost: None,
-            resize: None,
-            paste: None,
-            escape: None,
-            graphics: None,
-          };
-        }
-
         let mut mod_vec = Vec::new();
         let mods = mouse.modifiers;
 
@@ -177,7 +155,7 @@ impl From<Event> for TermEvent {
         // Convert MouseEventKind to string and extract button
         let (kind, button) = match mouse.kind {
           MouseEventKind::Down(btn) => (
-            "mousedown",
+            "mouseDown",
             Some(match btn {
               MouseButton::Left => "left",
               MouseButton::Middle => "middle",
@@ -187,7 +165,7 @@ impl From<Event> for TermEvent {
             }),
           ),
           MouseEventKind::Up(btn) => (
-            "mouseup",
+            "mouseUp",
             Some(match btn {
               MouseButton::Left => "left",
               MouseButton::Middle => "middle",
@@ -197,7 +175,7 @@ impl From<Event> for TermEvent {
             }),
           ),
           MouseEventKind::Drag(btn) => (
-            "mousemove",
+            "mouseMove",
             Some(match btn {
               MouseButton::Left => "left",
               MouseButton::Middle => "middle",
@@ -206,11 +184,11 @@ impl From<Event> for TermEvent {
               MouseButton::Fifth => "fifth",
             }),
           ),
-          MouseEventKind::Moved => ("mousemove", None),
-          MouseEventKind::ScrollUp => ("scrollup", None),
-          MouseEventKind::ScrollDown => ("scrolldown", None),
-          MouseEventKind::ScrollLeft => ("scrollleft", None),
-          MouseEventKind::ScrollRight => ("scrollright", None),
+          MouseEventKind::Moved => ("mouseMove", None),
+          MouseEventKind::ScrollUp => ("scrollUp", None),
+          MouseEventKind::ScrollDown => ("scrollDown", None),
+          MouseEventKind::ScrollLeft => ("scrollLeft", None),
+          MouseEventKind::ScrollRight => ("scrollRight", None),
         };
 
         TermEvent {
@@ -316,83 +294,79 @@ impl From<Event> for TermEvent {
 }
 
 fn translate_key_code(code: &KeyCode) -> (String, bool, Option<&str>) {
-  let (code, with_keydown, left_right) = match code {
-    KeyCode::Backspace => ("backspace", true, None),
+  let (code, is_char_event, left_right) = match code {
+    KeyCode::Backspace => ("backspace", false, None),
     KeyCode::Enter => ("return", true, None),
-    KeyCode::Left => ("left", true, None),
-    KeyCode::Right => ("right", true, None),
-    KeyCode::Up => ("up", true, None),
-    KeyCode::Down => ("down", true, None),
-    KeyCode::Home => ("home", true, None),
-    KeyCode::End => ("end", true, None),
-    KeyCode::PageUp => ("pageup", true, None),
-    KeyCode::PageDown => ("pagedown", true, None),
-    KeyCode::Tab => ("tab", true, None),
-    KeyCode::BackTab => ("tab", true, None),
-    KeyCode::Delete => ("delete", true, None),
-    KeyCode::Insert => ("insert", true, None),
-    KeyCode::F(n) => return (format!("f{n}"), true, None),
+    KeyCode::Left => ("left", false, None),
+    KeyCode::Right => ("right", false, None),
+    KeyCode::Up => ("up", false, None),
+    KeyCode::Down => ("down", false, None),
+    KeyCode::Home => ("home", false, None),
+    KeyCode::End => ("end", false, None),
+    KeyCode::PageUp => ("pageup", false, None),
+    KeyCode::PageDown => ("pagedown", false, None),
+    KeyCode::Tab => ("tab", false, None),
+    KeyCode::BackTab => ("tab", false, None),
+    KeyCode::Delete => ("delete", false, None),
+    KeyCode::Insert => ("insert", false, None),
+    KeyCode::F(n) => return (format!("f{n}"), false, None),
     KeyCode::Char(c) => {
       if *c == ' ' {
         return ("space".to_string(), true, None);
       }
-      let c_lower = c.to_ascii_lowercase();
-      let is_special = c_lower.is_ascii_alphabetic() || c_lower.is_ascii_digit();
-      return (c_lower.to_string(), is_special, None);
+      return (c.to_string(), true, None);
     }
-    KeyCode::Esc => ("escape", true, None),
-    KeyCode::CapsLock => ("capslock", true, None),
-    KeyCode::ScrollLock => ("scrolllock", true, None),
-    KeyCode::NumLock => ("numlock", true, None),
-    KeyCode::PrintScreen => ("printscreen", true, None),
-    KeyCode::Pause => ("pause", true, None),
-    KeyCode::Menu => ("menu", true, None),
-    KeyCode::KeypadBegin => ("clear", true, None),
+    KeyCode::Esc => ("escape", false, None),
+    KeyCode::CapsLock => ("capslock", false, None),
+    KeyCode::ScrollLock => ("scrolllock", false, None),
+    KeyCode::NumLock => ("numlock", false, None),
+    KeyCode::PrintScreen => ("printscreen", false, None),
+    KeyCode::Pause => ("pause", false, None),
+    KeyCode::Menu => ("menu", false, None),
+    KeyCode::KeypadBegin => ("clear", false, None),
     KeyCode::Null => ("", false, None),
     KeyCode::Media(media) => match media {
-      MediaKeyCode::Play => ("mediaplay", true, None),
-      MediaKeyCode::Pause => ("mediapause", true, None),
-      MediaKeyCode::PlayPause => ("mediaplaypause", true, None),
-      MediaKeyCode::Reverse => ("mediareverse", true, None),
-      MediaKeyCode::Stop => ("mediastop", true, None),
-      MediaKeyCode::FastForward => ("mediafastforward", true, None),
-      MediaKeyCode::Rewind => ("mediarewind", true, None),
-      MediaKeyCode::TrackNext => ("medianexttrack", true, None),
-      MediaKeyCode::TrackPrevious => ("mediaprevioustrack", true, None),
-      MediaKeyCode::Record => ("mediarecord", true, None),
-      MediaKeyCode::LowerVolume => ("volumedown", true, None),
-      MediaKeyCode::RaiseVolume => ("volumeup", true, None),
-      MediaKeyCode::MuteVolume => ("volumemute", true, None),
+      MediaKeyCode::Play => ("mediaplay", false, None),
+      MediaKeyCode::Pause => ("mediapause", false, None),
+      MediaKeyCode::PlayPause => ("mediaplaypause", false, None),
+      MediaKeyCode::Reverse => ("mediareverse", false, None),
+      MediaKeyCode::Stop => ("mediastop", false, None),
+      MediaKeyCode::FastForward => ("mediafastforward", false, None),
+      MediaKeyCode::Rewind => ("mediarewind", false, None),
+      MediaKeyCode::TrackNext => ("medianexttrack", false, None),
+      MediaKeyCode::TrackPrevious => ("mediaprevioustrack", false, None),
+      MediaKeyCode::Record => ("mediarecord", false, None),
+      MediaKeyCode::LowerVolume => ("volumedown", false, None),
+      MediaKeyCode::RaiseVolume => ("volumeup", false, None),
+      MediaKeyCode::MuteVolume => ("volumemute", false, None),
     },
     KeyCode::Modifier(modifier) => match modifier {
-      ModifierKeyCode::LeftShift => ("shift", true, Some("left")),
-      ModifierKeyCode::RightShift => ("shift", true, Some("right")),
-      ModifierKeyCode::LeftControl => ("control", true, Some("left")),
-      ModifierKeyCode::RightControl => ("control", true, Some("right")),
-      ModifierKeyCode::LeftAlt => ("alt", true, Some("left")),
-      ModifierKeyCode::RightAlt => ("alt", true, Some("right")),
-      ModifierKeyCode::LeftSuper => ("super", true, Some("left")),
-      ModifierKeyCode::RightSuper => ("super", true, Some("right")),
-      ModifierKeyCode::LeftMeta => ("meta", true, Some("left")),
-      ModifierKeyCode::RightMeta => ("meta", true, Some("right")),
+      ModifierKeyCode::LeftShift => ("shift", false, Some("left")),
+      ModifierKeyCode::RightShift => ("shift", false, Some("right")),
+      ModifierKeyCode::LeftControl => ("control", false, Some("left")),
+      ModifierKeyCode::RightControl => ("control", false, Some("right")),
+      ModifierKeyCode::LeftAlt => ("alt", false, Some("left")),
+      ModifierKeyCode::RightAlt => ("alt", false, Some("right")),
+      ModifierKeyCode::LeftSuper => ("super", false, Some("left")),
+      ModifierKeyCode::RightSuper => ("super", false, Some("right")),
+      ModifierKeyCode::LeftMeta => ("meta", false, Some("left")),
+      ModifierKeyCode::RightMeta => ("meta", false, Some("right")),
       _ => ("", false, None),
     },
   };
-  (code.to_string(), with_keydown, left_right)
+  (code.to_string(), is_char_event, left_right)
 }
 
 #[napi(ts_return_type = "() => void")]
-pub fn listen_for_input(
-  env: Env,
-  #[napi(ts_arg_type = "(error: null | Error, event: TermEvent) => void")] callback: JsFunction,
+pub fn listen_for_input<'a>(
+  env: &'a Env,
+  callback: Function<TermEvent, ()>,
   wait_ms: Option<i32>,
-) -> napi::Result<JsFunction> {
+) -> Result<Function<'a, (), ()>> {
   // Convert the JavaScript callback into a threadsafe function
-  let tsfn: ThreadsafeFunction<TermEvent> = callback
-    .create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))
-    .map_err(|e| {
-      napi::Error::from_reason(format!("Failed to create threadsafe function: {}", e))
-    })?;
+  let tsfn = callback.build_threadsafe_function().build().map_err(|e| {
+    napi::Error::from_reason(format!("Failed to create threadsafe function: {}", e))
+  })?;
 
   // Reset the quit flag
   QUIT.store(false, Ordering::SeqCst);
@@ -402,14 +376,13 @@ pub fn listen_for_input(
 
   // Spawn the input polling thread
   std::thread::spawn({
-    let tsfn = tsfn.clone();
     move || {
       while !QUIT.load(Ordering::SeqCst) {
         match poll(Duration::from_millis(wait as u64)) {
           Ok(true) => {
             if let Ok(event) = read() {
               let js_event = TermEvent::from(event);
-              let status = tsfn.call(Ok(js_event), ThreadsafeFunctionCallMode::NonBlocking);
+              let status = tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
               if status != Status::Ok {
                 break;
               }
@@ -423,7 +396,7 @@ pub fn listen_for_input(
   });
 
   // Return cleanup function
-  env.create_function_from_closure("cleanup", |_| {
+  env.create_function_from_closure("cleanup", move |_| {
     QUIT.store(true, Ordering::SeqCst);
     Ok(())
   })

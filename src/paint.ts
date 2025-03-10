@@ -1,14 +1,18 @@
 import type { BrowserWindow } from 'electron';
-import { randomBytes } from 'node:crypto';
-import { ShmGraphicBuffer } from 'awrit-native';
+import { ShmGraphicBuffer } from 'awrit-native-rs';
 import type { InitialFrame, AnimationFrame } from './tty/kittyGraphics';
 import { console_ } from './console';
 import { options } from './args';
+import type { LayoutNode } from './layout';
 
 type PaintedContent = {
-  id: string;
   frame?: AnimationFrame;
-  compositeBuffer: ShmGraphicBuffer;
+  buffer?: ShmGraphicBuffer;
+  size?: number;
+  expectedWinSize?: {
+    width: number;
+    height: number;
+  };
 };
 
 const weakPaintedContents_ = new WeakMap<BrowserWindow, PaintedContent>();
@@ -16,23 +20,14 @@ const weakPaintedContents_ = new WeakMap<BrowserWindow, PaintedContent>();
 export function registerPaintedContent(
   containerFrame: InitialFrame,
   w: BrowserWindow,
-  position: { x: number; y: number },
+  layoutNode: LayoutNode,
 ): PaintedContent {
-  const id = randomBytes(16).toString('hex');
-  const compositeName = `awrit-${id}`;
-  const compositeBuffer = new ShmGraphicBuffer(compositeName);
-  console_.error('registerPaintedContent', id, compositeName);
-
   const contents = w.webContents;
-  const result: PaintedContent = {
-    id,
-    compositeBuffer,
-  };
+  const result: PaintedContent = {};
   const frameNumber = 2 + containerFrame.paintedContent++;
 
   function cleanup() {
     weakPaintedContents_.delete(w);
-    console_.error('cleanup', id);
   }
 
   w.on('resize', () => {
@@ -42,18 +37,32 @@ export function registerPaintedContent(
   });
 
   contents.on('paint', async (_event, _dirty, image) => {
+    const imageSize = image.getSize();
+
+    const imageBufferSize = imageSize.width * imageSize.height * 4;
+    if (result.buffer == null) {
+      result.buffer = new ShmGraphicBuffer(imageBufferSize);
+    }
+    if (options['debug-paint']) {
+      console_.error('paint', result.buffer.nameBase64, image.getSize());
+    }
     if (options['no-paint']) {
       return;
     }
 
-    const imageSize = image.getSize();
+    if (result.size != null && imageBufferSize > result.size) {
+      if (options['debug-paint']) {
+        console_.error('replace buffer', result.buffer.nameBase64, result.size, imageBufferSize);
+      }
+      result.buffer = new ShmGraphicBuffer(imageBufferSize);
+      result.size = imageBufferSize;
+    }
 
     const buffer = image.getBitmap();
-    compositeBuffer.write(buffer, imageSize);
-    containerFrame.loadFrame(frameNumber, compositeName, imageSize).composite({
-      ...imageSize,
-      ...position,
-    });
+    result.buffer.write(buffer, imageSize.width);
+    containerFrame
+      .loadFrame(frameNumber, result.buffer, imageSize)
+      .composite(layoutNode.deviceLayout);
   });
   contents.on('render-process-gone', cleanup);
   contents.on('destroyed', cleanup);

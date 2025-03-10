@@ -1,6 +1,6 @@
 [package]
 name = "awrit-native-rs"
-version = "0.1.0"
+version = "2.0.0"
 edition = "2021"
 
 [lib]
@@ -9,14 +9,14 @@ crate-type = ["cdylib"]
 [dependencies]
 nix = { version = "0.29.0", features = ["fs", "mman"] }
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
-napi = { version = "2.14.1", default-features = false, features = [
-    "napi4",
+napi = { version = "=3.0.0-alpha.31", default-features = false, features = [
     "napi5",
 ] }
-napi-derive = "2.14.1"
+napi-derive = "=3.0.0-alpha.28"
 base64 = "0.22.1"
 bgra-to-rgba = { path = "crates/bgra-to-rgba" }
 crossterm = { path = "crates/crossterm" }
+ctor = "0.4.0"
 
 [build-dependencies]
 napi-build = "2.0.1"

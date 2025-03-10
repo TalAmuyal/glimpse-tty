@@ -4,7 +4,7 @@
 //!
 //! Crossterm is a pure-rust, terminal manipulation library that makes it possible to write cross-platform text-based interfaces.
 //!
-//! This crate supports all UNIX and Windows terminals down to Windows 7 (not all terminals are tested
+//! This crate supports all UNIX terminals (not all terminals are tested
 //! see [Tested Terminals](https://github.com/crossterm-rs/crossterm#tested-terminals)
 //! for more info).
 //!
@@ -27,9 +27,8 @@
 //! * Macros are generally seen as more difficult and aren't always well supported by editors but offer an API with less boilerplate code. If you are
 //!   not afraid of macros, this is a recommendation.
 //!
-//! Linux and Windows 10 systems support ANSI escape codes. Those ANSI escape codes are strings or rather a
+//! Linux systems support ANSI escape codes. Those ANSI escape codes are strings or rather a
 //! byte sequence. When we `write` and `flush` those to the terminal we can perform some action.
-//! For older windows systems a WinAPI call is made.
 //!
 //! ### Supported Commands
 //!
@@ -246,11 +245,5 @@ pub mod terminal;
 /// A module to query if the current instance is a tty.
 pub mod tty;
 
-#[cfg(windows)]
-/// A module that exposes one function to check if the current terminal supports ANSI sequences.
-pub mod ansi_support;
 mod command;
 pub(crate) mod macros;
-
-#[cfg(all(windows, not(feature = "windows")))]
-compile_error!("Compiling on Windows with \"windows\" feature disabled. Feature \"windows\" should only be disabled when project will never be compiled on Windows.");

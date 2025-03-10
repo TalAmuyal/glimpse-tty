@@ -13,9 +13,27 @@
     "strict": true,
     "resolveJsonModule": true,
     "paths": {
-      "*": ["node_modules/*"]
+      "*": [
+        "node_modules/*"
+      ]
     },
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "awrit-native-rs",
+    "src/runner",
+    "src/runner/**/*",
+    "src/toolbar",
+    "src/toolbar/**/*",
+    "src/**/*.test.ts",
+    "src/tty/inputTest.ts",
+    "src/tty/graphicsTest.ts"
+  ]
 }

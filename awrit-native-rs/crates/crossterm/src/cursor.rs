@@ -63,11 +63,6 @@ impl Command for MoveTo {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         write!(f, csi!("{};{}H"), self.1 + 1, self.0 + 1)
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::move_to(self.0, self.1)
-    }
 }
 
 /// A command that moves the terminal cursor down the given number of lines,
@@ -83,14 +78,6 @@ pub struct MoveToNextLine(pub u16);
 impl Command for MoveToNextLine {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         write!(f, csi!("{}E"), self.0)?;
-        Ok(())
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        if self.0 != 0 {
-            sys::move_to_next_line(self.0)?;
-        }
         Ok(())
     }
 }
@@ -110,14 +97,6 @@ impl Command for MoveToPreviousLine {
         write!(f, csi!("{}F"), self.0)?;
         Ok(())
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        if self.0 != 0 {
-            sys::move_to_previous_line(self.0)?;
-        }
-        Ok(())
-    }
 }
 
 /// A command that moves the terminal cursor to the given column on the current row.
@@ -133,11 +112,6 @@ impl Command for MoveToColumn {
         write!(f, csi!("{}G"), self.0 + 1)?;
         Ok(())
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::move_to_column(self.0)
-    }
 }
 
 /// A command that moves the terminal cursor to the given row on the current column.
@@ -152,11 +126,6 @@ impl Command for MoveToRow {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         write!(f, csi!("{}d"), self.0 + 1)?;
         Ok(())
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::move_to_row(self.0)
     }
 }
 
@@ -174,11 +143,6 @@ impl Command for MoveUp {
         write!(f, csi!("{}A"), self.0)?;
         Ok(())
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::move_up(self.0)
-    }
 }
 
 /// A command that moves the terminal cursor a given number of columns to the right.
@@ -194,11 +158,6 @@ impl Command for MoveRight {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         write!(f, csi!("{}C"), self.0)?;
         Ok(())
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::move_right(self.0)
     }
 }
 
@@ -216,11 +175,6 @@ impl Command for MoveDown {
         write!(f, csi!("{}B"), self.0)?;
         Ok(())
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::move_down(self.0)
-    }
 }
 
 /// A command that moves the terminal cursor a given number of columns to the left.
@@ -236,11 +190,6 @@ impl Command for MoveLeft {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         write!(f, csi!("{}D"), self.0)?;
         Ok(())
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::move_left(self.0)
     }
 }
 
@@ -259,11 +208,6 @@ impl Command for SavePosition {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str("\x1B7")
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::save_position()
-    }
 }
 
 /// A command that restores the saved terminal cursor position.
@@ -281,11 +225,6 @@ impl Command for RestorePosition {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str("\x1B8")
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::restore_position()
-    }
 }
 
 /// A command that hides the terminal cursor.
@@ -299,11 +238,6 @@ pub struct Hide;
 impl Command for Hide {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?25l"))
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::show_cursor(false)
     }
 }
 
@@ -319,18 +253,13 @@ impl Command for Show {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?25h"))
     }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        sys::show_cursor(true)
-    }
 }
 
 /// A command that enables blinking of the terminal cursor.
 ///
 /// # Notes
 ///
-/// - Some Unix terminals (ex: GNOME and Konsole) as well as Windows versions lower than Windows 10 do not support this functionality.
+/// - Some Unix terminals (ex: GNOME and Konsole) do not support this functionality.
 ///   Use `SetCursorStyle` for better cross-compatibility.
 /// - Commands must be executed/queued for execution otherwise they do nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -339,17 +268,13 @@ impl Command for EnableBlinking {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?12h"))
     }
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        Ok(())
-    }
 }
 
 /// A command that disables blinking of the terminal cursor.
 ///
 /// # Notes
 ///
-/// - Some Unix terminals (ex: GNOME and Konsole) as well as Windows versions lower than Windows 10 do not support this functionality.
+/// - Some Unix terminals (ex: GNOME and Konsole) do not support this functionality.
 ///   Use `SetCursorStyle` for better cross-compatibility.
 /// - Commands must be executed/queued for execution otherwise they do nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -357,10 +282,6 @@ pub struct DisableBlinking;
 impl Command for DisableBlinking {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         f.write_str(csi!("?12l"))
-    }
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        Ok(())
     }
 }
 
@@ -399,11 +320,6 @@ impl Command for SetCursorStyle {
             SetCursorStyle::BlinkingBar => f.write_str("\x1b[5 q"),
             SetCursorStyle::SteadyBar => f.write_str("\x1b[6 q"),
         }
-    }
-
-    #[cfg(windows)]
-    fn execute_winapi(&self) -> std::io::Result<()> {
-        Ok(())
     }
 }
 

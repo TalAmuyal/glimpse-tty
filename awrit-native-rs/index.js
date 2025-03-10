@@ -310,9 +310,10 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { termEnableFeatures, termDisableFeatures, listenForInput, ShmGraphicBuffer } = nativeBinding
+const { termEnableFeatures, termDisableFeatures, getWindowSize, listenForInput, ShmGraphicBuffer } = nativeBinding
 
 module.exports.termEnableFeatures = termEnableFeatures
 module.exports.termDisableFeatures = termDisableFeatures
+module.exports.getWindowSize = getWindowSize
 module.exports.listenForInput = listenForInput
 module.exports.ShmGraphicBuffer = ShmGraphicBuffer

@@ -70,9 +70,9 @@ export function Toolbar() {
   };
 
   return (
-    <div class="h-screen flex items-center bg-kitty-bg border-b-2 border-active-border text-kitty-fg -ml-1">
-      <div class="flex items-center w-full h-full px-1 box-border -mt-1">
-        <div class="flex gap-1 mr-2">
+    <div class="h-screen flex items-center bg-kitty-bg border-b-2 border-active-border text-kitty-fg">
+      <div class="flex items-center w-full h-full px-1 box-border">
+        <div class="flex gap-1 mx-1">
           <Button
             title="Back"
             disabled={!navigationState().canGoBack}
@@ -101,11 +101,10 @@ export function Toolbar() {
           spellcheck="false"
           onClick={handleInputClick}
           onKeyDown={handleUrlSubmit}
-          class={`flex-1 h-6 px-1 text-sm border rounded-xs border-active-border selection:bg-selection-background selection:text-selection-foreground ${
-            isLoading()
+          class={`flex-1 h-6 px-1 text-sm border rounded-xs border-active-border selection:bg-selection-background selection:text-selection-foreground ${isLoading()
               ? 'bg-kitty-fg/10 border-inactive-border/50 text-kitty-fg/50'
               : 'bg-kitty-fg/10'
-          }`}
+            }`}
         />
       </div>
     </div>

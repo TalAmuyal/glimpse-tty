@@ -154,7 +154,7 @@ unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) { unsafe {
 
 #[cfg(target_arch = "aarch64")]
 #[inline(always)]
-unsafe fn prefetch(ptr: *const u8) {
+unsafe fn prefetch(ptr: *const u8) { unsafe {
     // On aarch64, we use PRFM (prefetch memory) instruction
     // This is equivalent to __builtin_prefetch
     core::arch::asm!(
@@ -162,11 +162,11 @@ unsafe fn prefetch(ptr: *const u8) {
         in(reg) ptr,
         options(nostack, readonly)
     );
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
-unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) {
+unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) { unsafe {
   const ALIGN_SIZE: usize = 16;
   let len = src.len();
   let src_ptr = src.as_ptr();
@@ -174,7 +174,13 @@ unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) {
   let src_aligned = src_ptr as usize % ALIGN_SIZE == 0;
   let dst_aligned = dst_ptr as usize % ALIGN_SIZE == 0;
 
-  // Process in chunks of 16 bytes
+  static SHUFFLE_TABLE: [u8; 16] = [
+    2, 1, 0, 3,    // First pixel
+    6, 5, 4, 7,    // Second pixel
+    10, 9, 8, 11,  // Third pixel
+    14, 13, 12, 15 // Fourth pixel
+  ];
+
   for i in (0..len - len % ALIGN_SIZE).step_by(ALIGN_SIZE) {
     let bgra = if src_aligned {
       vld1q_u8_aligned(src_ptr.add(i))
@@ -182,17 +188,17 @@ unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) {
       vld1q_u8(src_ptr.add(i))
     };
 
-    // Extract and reorder channels
-    let rgba = vrev64q_u8(vextq_u8(bgra, bgra, 8));
-    let final_rgba = vcombine_u8(vget_low_u8(rgba), vget_high_u8(bgra));
+    // Load the shuffle mask and apply it
+    let tbl = vld1q_u8(SHUFFLE_TABLE.as_ptr());
+    let rgba = vqtbl1q_u8(bgra, tbl);
 
     // Use non-temporal store for large buffers
     if len > CHUNK_SIZE {
-      vst1q_u8_nontemporal(dst_ptr.add(i), final_rgba);
+      vst1q_u8_nontemporal(dst_ptr.add(i), rgba);
     } else if dst_aligned {
-      vst1q_u8_aligned(dst_ptr.add(i), final_rgba);
+      vst1q_u8_aligned(dst_ptr.add(i), rgba);
     } else {
-      vst1q_u8(dst_ptr.add(i), final_rgba);
+      vst1q_u8(dst_ptr.add(i), rgba);
     }
 
     // Prefetch next chunk if we're not at the end
@@ -203,39 +209,33 @@ unsafe fn bgra_to_rgba_chunk(src: &[u8], dst: &mut [u8]) {
 
   // Handle remaining bytes
   for i in (len - len % ALIGN_SIZE..len).step_by(BYTES_PER_PIXEL) {
-    dst[i] = src[i + 2];
-    dst[i + 1] = src[i + 1];
-    dst[i + 2] = src[i];
-    dst[i + 3] = src[i + 3];
+    dst[i] = src[i + 2];     // R <- B
+    dst[i + 1] = src[i + 1]; // G <- G
+    dst[i + 2] = src[i];     // B <- R
+    dst[i + 3] = src[i + 3]; // A <- A
   }
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
-unsafe fn vld1q_u8_aligned(ptr: *const u8) -> uint8x16_t {
+unsafe fn vld1q_u8_aligned(ptr: *const u8) -> uint8x16_t { unsafe {
     // Initialize result with zeros to avoid uninitialized memory
     let mut result: uint8x16_t = vdupq_n_u8(0);
-    unsafe {
         std::ptr::copy_nonoverlapping(ptr, &mut result as *mut _ as *mut u8, 16);
-    }
     result
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
-unsafe fn vst1q_u8_aligned(ptr: *mut u8, val: uint8x16_t) {
-    unsafe {
+unsafe fn vst1q_u8_aligned(ptr: *mut u8, val: uint8x16_t) { unsafe {
         std::ptr::copy_nonoverlapping(&val as *const _ as *const u8, ptr, 16);
-    }
-}
+}}
 
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
-unsafe fn vst1q_u8_nontemporal(ptr: *mut u8, val: uint8x16_t) {
-    unsafe {
+unsafe fn vst1q_u8_nontemporal(ptr: *mut u8, val: uint8x16_t) { unsafe {
         std::ptr::write_volatile(ptr as *mut uint8x16_t, val);
-    }
-}
+}}
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
@@ -322,7 +322,7 @@ unsafe fn bgra_to_rgba_rect_chunk(
   image_width: u32,
   src_rect: Rect,
   src_start: usize,
-) {
+) { unsafe {
   const ALIGN_SIZE: usize = 16;
   let pixels_per_simd = ALIGN_SIZE / BYTES_PER_PIXEL;
   let src_ptr = src.as_ptr();
@@ -381,7 +381,7 @@ unsafe fn bgra_to_rgba_rect_chunk(
       dst[dst_offset + 3] = src[src_offset + 3]; // A
     }
   }
-}
+}}
 
 #[cfg(test)]
 mod tests {

@@ -193,3 +193,6 @@ $RECYCLE.BIN/
 !.yarn/versions
 
 *.node
+
+# bun.lock should only be available during a user install
+bun.lock

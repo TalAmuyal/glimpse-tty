@@ -2,8 +2,6 @@ use std::{collections::vec_deque::VecDeque, io, time::Duration};
 
 #[cfg(unix)]
 use crate::event::source::unix::UnixInternalEventSource;
-#[cfg(windows)]
-use crate::event::source::windows::WindowsEventSource;
 #[cfg(feature = "event-stream")]
 use crate::event::sys::Waker;
 use crate::event::{filter::Filter, source::EventSource, timeout::PollTimeout, InternalEvent};
@@ -17,8 +15,6 @@ pub(crate) struct InternalEventReader {
 
 impl Default for InternalEventReader {
     fn default() -> Self {
-        #[cfg(windows)]
-        let source = WindowsEventSource::new();
         #[cfg(unix)]
         let source = UnixInternalEventSource::new();
 

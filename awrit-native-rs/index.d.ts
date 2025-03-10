@@ -9,10 +9,18 @@ export interface SupportedFeatures {
   loadFrame: boolean
   compositeFrame: boolean
 }
+export interface WindowSize {
+  cols: number
+  rows: number
+  width: number
+  height: number
+}
 /** Enable features for the terminal that are necessary for Awrit */
 export declare function termEnableFeatures(): SupportedFeatures
 /** Disable previously enabled features for the terminal that are necessary for Awrit */
 export declare function termDisableFeatures(features: SupportedFeatures): void
+/** Get the current terminal window size */
+export declare function getWindowSize(): WindowSize
 export type TermEvent =
   { eventType: 'key', keyEvent: KeyEvent } |
   { eventType: 'mouse', mouseEvent: MouseEvent } |
@@ -25,14 +33,14 @@ export interface KeyEvent {
   /** Key code in Electron accelerator format (lowercase) */
   code: string
   /** Array of modifier strings in Electron accelerator format */
-  modifiers: ('ctrl' | 'alt' | 'shift' | 'meta' | 'capslock' | 'numlock' | 'left' | 'right' | 'isautorepeat')[]
+  modifiers: ('ctrl' | 'alt' | 'shift' | 'meta' | 'capsLock' | 'numLock' | 'left' | 'right' | 'isAutoRepeat')[]
   /** True for keydown and repeat events, false for keyup */
   down: boolean
-  /** True for keys that should have a keydown event */
-  withKeydown: boolean
+  /** True for keys that should have an Electron char event */
+  isCharEvent: boolean
 }
 export interface MouseEvent {
-  kind: 'mousedown' | 'mouseup' | 'mousemove' | 'scrollup' | 'scrolldown' | 'scrollleft' | 'scrollright'
+  kind: 'mouseDown' | 'mouseUp' | 'mouseMove' | 'scrollUp' | 'scrollDown' | 'scrollLeft' | 'scrollRight'
   button?: 'left' | 'middle' | 'right' | 'fourth' | 'fifth' | null
   x: number
   y: number
@@ -51,7 +59,7 @@ export interface KittyGraphics {
   id: string
   status: string
 }
-export declare function listenForInput(callback: (error: null | Error, event: TermEvent) => void, waitMs?: number | undefined | null): () => void
+export declare function listenForInput(callback: (arg: TermEvent) => void, waitMs?: number | undefined | null): () => void
 export interface DirtyRect {
   x: number
   y: number

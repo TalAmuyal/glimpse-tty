@@ -2,8 +2,8 @@ import { stdout } from 'node:process';
 import { GFX } from './escapeCodes';
 import type { Rect, Size } from './graphics';
 import { options } from '../args';
+import type { ShmGraphicBuffer } from 'awrit-native-rs';
 
-const nameBase64Cache: Record<string, string> = {};
 let imageId_ = 1;
 
 type ImageId = number & {};
@@ -21,22 +21,16 @@ function rect_(rect: Rect) {
   return `,x=${rect.x},y=${rect.y},w=${rect.width},h=${rect.height}`;
 }
 
-function shmRgba_(name: string, size: Size, control: string) {
-  let encoded = nameBase64Cache[name];
-  if (encoded == null) {
-    encoded = Buffer.from(name).toString('base64');
-    nameBase64Cache[name] = encoded;
-  }
-
+function shmRgba_(nameBase64: string, size: Size, control: string) {
   // f=32 rgba 32-bit
   // t=s SHM name
-  stdout.write(GFX`f=32,t=s${sv_size_(size)},${control};${encoded}`);
+  stdout.write(GFX`f=32,t=s${sv_size_(size)},${control};${nameBase64}`);
 }
 
 function paintBitmap(name: string, size: Size, control?: string) {
   // a=T transfer & display
   // C=1 don't move cursor
-  shmRgba_(name, size, `a=T,C=1${control == null ? '' : ',' + control}`);
+  shmRgba_(name, size, `a=T${quiet},C=1${control == null ? '' : ',' + control}`);
 }
 
 export interface AnimationFrame {
@@ -48,28 +42,31 @@ export interface AnimationFrame {
 export interface InitialFrame {
   readonly size: Size;
   paintedContent: number;
-  loadFrame: (frame: number, name: string, size: Size) => AnimationFrame;
+  buffer: WeakRef<ShmGraphicBuffer>;
+  loadFrame: (frame: number, buffer: ShmGraphicBuffer, size: Size) => AnimationFrame;
   free: () => void;
 }
 
-export function paintInitialFrame(name: string, size: Size): InitialFrame {
+export function paintInitialFrame(buffer: ShmGraphicBuffer, size: Size): InitialFrame {
   const id = imageId();
   // paint and transfer first frame
-  paintBitmap(name, size, `i=${id}`);
+  paintBitmap(buffer.nameBase64, size, `i=${id}`);
   // pause at the first frame
   stdout.write(GFX`a=a,i=${id},c=1`);
 
   return {
     size,
     paintedContent: 0,
-    loadFrame: (frame: number, name: string, size: Size) => loadFrame(id, frame, name, size),
+    buffer: new WeakRef(buffer),
+    loadFrame: (frame: number, buffer: ShmGraphicBuffer, size: Size) =>
+      loadFrame(id, frame, buffer.nameBase64, size),
     free: () => freeImage(id),
   };
 }
 
-function loadFrame(id: ImageId, frame: number, name: string, size: Size): AnimationFrame {
+function loadFrame(id: ImageId, frame: number, nameBase64: string, size: Size): AnimationFrame {
   // a=f animation frame
-  shmRgba_(name, size, `a=f${quiet},i=${id},r=${frame},X=1`);
+  shmRgba_(nameBase64, size, `a=f${quiet},i=${id},r=${frame},X=1`);
 
   return {
     size,

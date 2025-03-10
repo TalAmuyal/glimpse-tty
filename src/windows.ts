@@ -1,7 +1,6 @@
 import {
   BrowserWindow,
   type BrowserWindowConstructorOptions,
-  type Size,
   type WebContents,
   ipcMain,
 } from 'electron';
@@ -10,27 +9,29 @@ import { registerPaintedContent } from './paint';
 import { sessionPromise } from './session';
 import { extensionsPromise, installedExtensionsPromise } from './extensions';
 import { type InitialFrame, paintInitialFrame } from './tty/kittyGraphics';
-import { randomBytes } from 'node:crypto';
-import { ShmGraphicBuffer } from 'awrit-native';
-import { scaleSize } from './dpi';
+import { ShmGraphicBuffer } from 'awrit-native-rs';
 import { options } from './args';
 import { console_ } from './console';
 import { TOOLBAR_PORT } from './runner/ports';
-
-export const windowSize: {
-  width: number;
-  height: number;
-} = {
-  width: 0,
-  height: 0,
-};
+import {
+  layout,
+  row,
+  px,
+  auto,
+  calculateLayout,
+  type LayoutContainer,
+  type LayoutNode,
+} from './layout';
+import { getDisplayScale } from './dpi';
 
 type WindowView = {
-  baseSize: Size;
   toolbar: BrowserWindow;
   content: BrowserWindow;
   containerFrame: InitialFrame;
   focusedContent: WebContents;
+  layoutContainer: LayoutContainer;
+  toolbarNode: LayoutNode;
+  contentNode: LayoutNode;
 };
 
 export const focusedView: {
@@ -43,7 +44,20 @@ export const focusedView: {
 
 export const windowViews = new WeakMap<BrowserWindow, WindowView>();
 
-export const TOOLBAR_HEIGHT = 42;
+const TOOLBAR_HEIGHT = 40;
+
+/**
+ * NOTE: the happens before load but after frame navigate
+ * this is necessary because zoom can only be set when a URL is associated with the webContents
+ *
+ * This also prevents users from persisting zoom level which is bad, so we probably want
+ * to store that somewhere if the user changes zoom and restore that number instead
+ */
+function resetForFrameQuirk(webContents: WebContents) {
+  webContents.once('did-frame-navigate', () => {
+    webContents.setZoomFactor(1);
+  });
+}
 
 export const managedViews: WindowView[] = [];
 
@@ -57,78 +71,76 @@ export async function createWindowWithToolbar(
   size: { width: number; height: number },
   initialUrl = 'https://github.com/chase/awrit',
 ): Promise<WindowView> {
-  const id = randomBytes(16).toString('hex');
-  const containerName = `awrit-${id}`;
-  const containerBuffer = new ShmGraphicBuffer(containerName);
+  // Create layout container with device pixel dimensions
+  const layoutContainer = layout(size.width, size.height, getDisplayScale());
+
+  // Create layout nodes for toolbar and content
+  const toolbarNode = row({ height: px(TOOLBAR_HEIGHT), tag: 'toolbar' });
+  const contentNode = row({ height: auto(), tag: 'content' });
+
+  // Calculate layout
+  calculateLayout(layoutContainer, [toolbarNode, contentNode]);
+  // process.emit('SIGINT');
+
   // this deals with the DPI scale rounding error causing the buffer to be too small
   const scaledSize = {
     width: size.width + 3,
     height: size.height + 3,
   };
-  containerBuffer.write(Buffer.alloc(scaledSize.width * scaledSize.height * 4), scaledSize);
-  const containerFrame = paintInitialFrame(containerName, scaledSize);
+  const containerBuffer = new ShmGraphicBuffer(scaledSize.width * scaledSize.height * 4);
+  containerBuffer.writeEmpty();
+  const containerFrame = paintInitialFrame(containerBuffer, scaledSize);
 
   const transparentWindowSettings = {
     transparent: true,
     backgroundColor: '#00000000',
   };
 
-  // You're probably thinking "why not just use the content view?"
-  // It's broken: https://github.com/electron/electron/issues/45864
-  // And that makes me sad: https://github.com/electron/electron/issues/22174#issuecomment-1183050589
-
   const sharedConstructorOptions: BrowserWindowConstructorOptions = {
     useContentSize: true,
     show: false,
     frame: false,
     paintWhenInitiallyHidden: true,
+    hiddenInMissionControl: true,
+    acceptFirstMouse: true,
+    skipTaskbar: true,
   };
 
-  const toolbar = new BrowserWindow(
-    scaleSize({
-      ...sharedConstructorOptions,
-      width: size.width,
-      height: TOOLBAR_HEIGHT,
+  const toolbar = new BrowserWindow({
+    ...sharedConstructorOptions,
+    ...toolbarNode.computedLayout,
 
-      webPreferences: {
-        offscreen: true,
-        nodeIntegration: false,
-        contextIsolation: true,
+    webPreferences: {
+      zoomFactor: 1,
+      offscreen: true,
+      nodeIntegration: false,
+      contextIsolation: true,
 
-        preload: path.resolve(__dirname, '../dist/preload.js'),
-      },
-    }),
-  );
+      preload: path.resolve(__dirname, '../dist/preload.js'),
+    },
+  });
 
-  const content = new BrowserWindow(
-    scaleSize({
-      ...sharedConstructorOptions,
-      width: size.width,
-      height: size.height - TOOLBAR_HEIGHT,
+  const content = new BrowserWindow({
+    ...sharedConstructorOptions,
+    ...contentNode.computedLayout,
 
-      ...(options.transparent ? transparentWindowSettings : {}),
+    ...(options.transparent ? transparentWindowSettings : {}),
 
-      webPreferences: {
-        session: await sessionPromise,
+    webPreferences: {
+      zoomFactor: 1,
+      session: await sessionPromise,
 
-        sandbox: true,
-        offscreen: true,
-        nodeIntegration: false,
-        contextIsolation: true,
-        disableDialogs: true,
-      },
-    }),
-  );
+      sandbox: true,
+      offscreen: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      disableDialogs: true,
+    },
+  });
 
-  // Handle window resize events
-  // baseWin.on('resize', () => {
-  //   const [width, height] = baseWin.getSize();
-  // updateViewSizes(baseWin, width, height);
-  // });
-
-  // Register for painting
-  registerPaintedContent(containerFrame, toolbar, { x: 0, y: 0 });
-  registerPaintedContent(containerFrame, content, { x: 0, y: TOOLBAR_HEIGHT + 1 });
+  // Register for painting using layout-computed positions
+  registerPaintedContent(containerFrame, toolbar, toolbarNode);
+  registerPaintedContent(containerFrame, content, contentNode);
 
   // Add to extensions
   extensionsPromise.then((extensions) => {
@@ -141,7 +153,10 @@ export async function createWindowWithToolbar(
       console_.error('toolbar loaded');
     });
     toolbar.webContents.once('did-fail-load', (event, errorCode, errorDescription) => {
-      console_.error('toolbar failed to load', { errorCode, errorDescription });
+      console_.error('toolbar failed to load', {
+        errorCode,
+        errorDescription,
+      });
     });
     toolbar.webContents.loadURL(`http://localhost:${TOOLBAR_PORT}`);
     toolbar.webContents.openDevTools({
@@ -150,16 +165,20 @@ export async function createWindowWithToolbar(
       activate: false,
     });
   } else {
+    resetForFrameQuirk(toolbar.webContents);
     toolbar.webContents.loadFile('../dist/toolbar/index.html');
   }
+  resetForFrameQuirk(content.webContents);
   content.webContents.loadURL(initialUrl);
 
   const view: WindowView = {
-    baseSize: size,
     toolbar,
     content,
     containerFrame,
     focusedContent: content.webContents,
+    layoutContainer,
+    toolbarNode,
+    contentNode,
   };
 
   // Add to managed windows
@@ -173,10 +192,16 @@ export async function createWindowWithToolbar(
 }
 
 function updateViewSizes(view: WindowView, width: number, height: number) {
-  const { toolbar, content } = view;
+  const { toolbar, content, layoutContainer, toolbarNode, contentNode } = view;
 
-  toolbar.setContentSize(width, TOOLBAR_HEIGHT);
-  content.setContentSize(width, height - TOOLBAR_HEIGHT);
+  // Recalculate layout with new dimensions in device pixels
+  layoutContainer.logicalWidth = width / layoutContainer.devicePixelRatio;
+  layoutContainer.logicalHeight = height / layoutContainer.devicePixelRatio;
+  calculateLayout(layoutContainer, [toolbarNode, contentNode]);
+
+  // Update window sizes based on layout
+  toolbar.setContentSize(toolbarNode.computedLayout.width, toolbarNode.computedLayout.height);
+  content.setContentSize(contentNode.computedLayout.width, contentNode.computedLayout.height);
 }
 
 function setupToolbarIPC(
