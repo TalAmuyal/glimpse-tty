@@ -18,7 +18,8 @@
     "start": "electron dist/index.cjs",
     "input-test": "bun run ./src/tty/inputTest.ts",
     "gfx-test": "bun run ./src/tty/graphicsTest.ts",
-    "bump-crossterm": "git subtree pull --prefix=awrit-native-rs/crates/crossterm --squash https://github.com/crossterm-rs/crossterm master"
+    "bump-crossterm": "git subtree pull --prefix=awrit-native-rs/crates/crossterm --squash https://github.com/crossterm-rs/crossterm master",
+    "typecheck": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
     "awrit-native-rs": "./awrit-native-rs",

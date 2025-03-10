@@ -9,7 +9,7 @@ import {
 } from 'awrit-native-rs';
 import * as out from './tty/output';
 import { handleInput } from './inputHandler';
-import { focusedView, windowSize, createWindowWithToolbar } from './windows';
+import { createWindowWithToolbar } from './windows';
 import { console_ } from './console';
 import { options, showHelp } from './args';
 import { execSync } from 'node:child_process';
@@ -49,23 +49,6 @@ const cleanup = (signum = 1, reason?: string) => {
   process.exit(signum);
 };
 
-function resizeHandler(size: { width: number; height: number }) {
-  if (windowSize.width === size.width && windowSize.height === size.height) return;
-
-  Object.assign(windowSize, size);
-  const view = focusedView.current;
-  if (!view) {
-    return;
-  }
-
-  /* This doesn't work for some reason
-  win.setContentSize(windowSize.width, windowSize.height, false);
-  win.setSize(windowSize.width, windowSize.height, false);
-  win.webContents.send('resize', windowSize);
-  // win.webContents.invalidate();
-  */
-}
-
 function inputHandler(evt: TermEvent) {
   if (
     evt.eventType === 'key' &&
@@ -74,14 +57,6 @@ function inputHandler(evt: TermEvent) {
   ) {
     quitListening();
     cleanup(0);
-  }
-
-  // Window size events now come through resize events
-  if (evt.eventType === 'resize') {
-    const size = getWindowSize();
-    if (size) {
-      resizeHandler({ width: size.width, height: size.height });
-    }
   }
 
   // Graphics protocol events now come through graphics events
@@ -97,10 +72,7 @@ function setup() {
   process.on('SIGTERM', cleanup);
   process.on('SIGABRT', cleanup);
   process.on('SIGWINCH', () => {
-    const size = getWindowSize();
-    if (size) {
-      resizeHandler({ width: size.width, height: size.height });
-    }
+    // TODO: Handle resize
   });
 
   out.setup();
@@ -120,10 +92,6 @@ function setup() {
 
   out.clearScreen();
   out.placeCursor({ x: 0, y: 0 });
-  const size = getWindowSize();
-  if (size) {
-    resizeHandler({ width: size.width, height: size.height });
-  }
 }
 
 setup();
@@ -135,5 +103,5 @@ app.commandLine.appendSwitch('disable-logging');
 app.commandLine.appendSwitch('silent-debugger-extension-api');
 
 app.whenReady().then(() => {
-  createWindowWithToolbar(windowSize, INITIAL_URL);
+  createWindowWithToolbar(getWindowSize(), INITIAL_URL);
 });

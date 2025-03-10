@@ -3,7 +3,7 @@ import { ShmGraphicBuffer } from 'awrit-native-rs';
 import type { InitialFrame, AnimationFrame } from './tty/kittyGraphics';
 import { console_ } from './console';
 import { options } from './args';
-import { dpi_scale, scaleSize } from './dpi';
+import type { LayoutNode } from './layout';
 
 type PaintedContent = {
   frame?: AnimationFrame;
@@ -20,7 +20,7 @@ const weakPaintedContents_ = new WeakMap<BrowserWindow, PaintedContent>();
 export function registerPaintedContent(
   containerFrame: InitialFrame,
   w: BrowserWindow,
-  position: { x: number; y: number },
+  layoutNode: LayoutNode,
 ): PaintedContent {
   const contents = w.webContents;
   const result: PaintedContent = {};
@@ -97,10 +97,9 @@ export function registerPaintedContent(
 
     const buffer = image.getBitmap();
     result.buffer.write(buffer, imageSize.width);
-    containerFrame.loadFrame(frameNumber, result.buffer, imageSize).composite({
-      ...imageSize,
-      ...position,
-    });
+    containerFrame
+      .loadFrame(frameNumber, result.buffer, imageSize)
+      .composite(layoutNode.computedLayout);
   });
   contents.on('render-process-gone', cleanup);
   contents.on('destroyed', cleanup);

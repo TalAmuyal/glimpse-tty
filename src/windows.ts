@@ -1,7 +1,6 @@
 import {
   BrowserWindow,
   type BrowserWindowConstructorOptions,
-  type Size,
   type WebContents,
   ipcMain,
 } from 'electron';
@@ -11,25 +10,27 @@ import { sessionPromise } from './session';
 import { extensionsPromise, installedExtensionsPromise } from './extensions';
 import { type InitialFrame, paintInitialFrame } from './tty/kittyGraphics';
 import { ShmGraphicBuffer } from 'awrit-native-rs';
-import { scaleSize } from './dpi';
 import { options } from './args';
 import { console_ } from './console';
 import { TOOLBAR_PORT } from './runner/ports';
-
-export const windowSize: {
-  width: number;
-  height: number;
-} = {
-  width: 0,
-  height: 0,
-};
+import {
+  layout,
+  row,
+  px,
+  auto,
+  calculateLayout,
+  type LayoutContainer,
+  type LayoutNode,
+} from './layout';
 
 type WindowView = {
-  baseSize: Size;
   toolbar: BrowserWindow;
   content: BrowserWindow;
   containerFrame: InitialFrame;
   focusedContent: WebContents;
+  layoutContainer: LayoutContainer;
+  toolbarNode: LayoutNode;
+  contentNode: LayoutNode;
 };
 
 export const focusedView: {
@@ -56,6 +57,16 @@ export async function createWindowWithToolbar(
   size: { width: number; height: number },
   initialUrl = 'https://github.com/chase/awrit',
 ): Promise<WindowView> {
+  // Create layout container with device pixel dimensions
+  const layoutContainer = layout(size.width, size.height, 1);
+
+  // Create layout nodes for toolbar and content
+  const toolbarNode = row({ height: px(TOOLBAR_HEIGHT), tag: 'toolbar' });
+  const contentNode = row({ height: auto(), tag: 'content' });
+
+  // Calculate layout
+  calculateLayout(layoutContainer, [toolbarNode, contentNode]);
+
   // this deals with the DPI scale rounding error causing the buffer to be too small
   const scaledSize = {
     width: size.width + 3,
@@ -70,10 +81,6 @@ export async function createWindowWithToolbar(
     backgroundColor: '#00000000',
   };
 
-  // You're probably thinking "why not just use the content view?"
-  // It's broken: https://github.com/electron/electron/issues/45864
-  // And that makes me sad: https://github.com/electron/electron/issues/22174#issuecomment-1183050589
-
   const sharedConstructorOptions: BrowserWindowConstructorOptions = {
     useContentSize: true,
     show: false,
@@ -84,54 +91,41 @@ export async function createWindowWithToolbar(
     skipTaskbar: true,
   };
 
-  const toolbar = new BrowserWindow(
-    scaleSize({
-      ...sharedConstructorOptions,
-      width: size.width,
-      height: TOOLBAR_HEIGHT,
+  const toolbar = new BrowserWindow({
+    ...sharedConstructorOptions,
+    width: toolbarNode.computedLayout.width,
+    height: toolbarNode.computedLayout.height,
 
-      webPreferences: {
-        offscreen: true,
-        nodeIntegration: false,
-        contextIsolation: true,
+    webPreferences: {
+      offscreen: true,
+      nodeIntegration: false,
+      contextIsolation: true,
 
-        preload: path.resolve(__dirname, '../dist/preload.js'),
-      },
-    }),
-  );
-
-  const content = new BrowserWindow(
-    scaleSize({
-      ...sharedConstructorOptions,
-      width: size.width,
-      height: size.height - TOOLBAR_HEIGHT,
-
-      ...(options.transparent ? transparentWindowSettings : {}),
-
-      webPreferences: {
-        session: await sessionPromise,
-
-        sandbox: true,
-        offscreen: true,
-        nodeIntegration: false,
-        contextIsolation: true,
-        disableDialogs: true,
-      },
-    }),
-  );
-
-  // Handle window resize events
-  // baseWin.on('resize', () => {
-  //   const [width, height] = baseWin.getSize();
-  // updateViewSizes(baseWin, width, height);
-  // });
-
-  // Register for painting
-  registerPaintedContent(containerFrame, toolbar, { x: 0, y: 0 });
-  registerPaintedContent(containerFrame, content, {
-    x: 0,
-    y: TOOLBAR_HEIGHT + 1,
+      preload: path.resolve(__dirname, '../dist/preload.js'),
+    },
   });
+
+  const content = new BrowserWindow({
+    ...sharedConstructorOptions,
+    width: contentNode.computedLayout.width,
+    height: contentNode.computedLayout.height,
+
+    ...(options.transparent ? transparentWindowSettings : {}),
+
+    webPreferences: {
+      session: await sessionPromise,
+
+      sandbox: true,
+      offscreen: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      disableDialogs: true,
+    },
+  });
+
+  // Register for painting using layout-computed positions
+  registerPaintedContent(containerFrame, toolbar, toolbarNode);
+  registerPaintedContent(containerFrame, content, contentNode);
 
   // Add to extensions
   extensionsPromise.then((extensions) => {
@@ -161,11 +155,13 @@ export async function createWindowWithToolbar(
   content.webContents.loadURL(initialUrl);
 
   const view: WindowView = {
-    baseSize: size,
     toolbar,
     content,
     containerFrame,
     focusedContent: content.webContents,
+    layoutContainer,
+    toolbarNode,
+    contentNode,
   };
 
   // Add to managed windows
@@ -179,10 +175,16 @@ export async function createWindowWithToolbar(
 }
 
 function updateViewSizes(view: WindowView, width: number, height: number) {
-  const { toolbar, content } = view;
+  const { toolbar, content, layoutContainer, toolbarNode, contentNode } = view;
 
-  toolbar.setContentSize(width, TOOLBAR_HEIGHT);
-  content.setContentSize(width, height - TOOLBAR_HEIGHT);
+  // Recalculate layout with new dimensions in device pixels
+  layoutContainer.logicalWidth = width / layoutContainer.devicePixelRatio;
+  layoutContainer.logicalHeight = height / layoutContainer.devicePixelRatio;
+  calculateLayout(layoutContainer, [toolbarNode, contentNode]);
+
+  // Update window sizes based on layout
+  toolbar.setContentSize(toolbarNode.computedLayout.width, toolbarNode.computedLayout.height);
+  content.setContentSize(contentNode.computedLayout.width, contentNode.computedLayout.height);
 }
 
 function setupToolbarIPC(

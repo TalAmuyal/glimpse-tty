@@ -1,6 +1,5 @@
 import type { TermEvent } from 'awrit-native-rs';
 import { focusedView, TOOLBAR_HEIGHT } from './windows';
-import { dpi_scale } from './dpi';
 
 const WHEEL_DELTA = 100;
 
@@ -43,8 +42,8 @@ export function handleInput(evt: TermEvent) {
     }
 
     case 'mouse': {
+      const DPI_SCALE = view.layoutContainer.devicePixelRatio;
       const { kind, button, x, y, modifiers } = evt.mouseEvent;
-      const DPI_SCALE = dpi_scale.current ?? 1;
       const adjustedX = Math.floor((x ?? 0) / DPI_SCALE);
       const yOffset = y > TOOLBAR_HEIGHT ? TOOLBAR_HEIGHT : 0;
       const adjustedY = Math.floor(((y ?? yOffset) - yOffset) / DPI_SCALE);
