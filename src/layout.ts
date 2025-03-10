@@ -18,6 +18,7 @@ export interface LayoutNode {
   children: LayoutNode[];
   parent: LayoutNode | null;
   computedLayout: Rect;
+  deviceLayout: Rect;
   width: Size;
   height: Size;
   type: NodeType;
@@ -132,6 +133,7 @@ export function row(options: LayoutNodeOptions = {}, children: LayoutNode[] = []
     children,
     parent: null,
     computedLayout: { x: 0, y: 0, width: 0, height: 0 },
+    deviceLayout: { x: 0, y: 0, width: 0, height: 0 },
     width: options.width || auto(),
     height: options.height || auto(),
     type: 'row',
@@ -272,13 +274,13 @@ export function layout(
   deviceHeight: number,
   devicePixelRatio = 1.0,
 ): LayoutContainer {
-  const logicalWidth = deviceWidth / devicePixelRatio;
-  const logicalHeight = deviceHeight / devicePixelRatio;
+  const logicalWidth = deviceWidth;
+  const logicalHeight = deviceHeight;
 
   return {
-    root: row({
-      width: px(logicalWidth),
-      height: px(logicalHeight),
+    root: column({
+      width: dpx(logicalWidth),
+      height: dpx(logicalHeight),
     }),
     devicePixelRatio,
     logicalWidth,
@@ -322,6 +324,12 @@ function calculateNodeAndQueueChildren(
     y,
     width: nodeWidth,
     height: nodeHeight,
+  };
+  node.deviceLayout = {
+    x: getSizeInDevicePixels(container, x),
+    y: getSizeInDevicePixels(container, y),
+    width: getSizeInDevicePixels(container, nodeWidth),
+    height: getSizeInDevicePixels(container, nodeHeight),
   };
 
   // If no children, we're done
@@ -514,8 +522,12 @@ function getSizeInLogicalPixels(container: LayoutContainer, size: Size): number 
     return 0;
   }
   if (size.unit === 'dpx') {
-    return size.value / container.devicePixelRatio;
+    return Math.floor(size.value / container.devicePixelRatio);
   }
   // logical pixels (px)
   return size.value;
+}
+
+function getSizeInDevicePixels(container: LayoutContainer, size: number): number {
+  return Math.ceil(size * container.devicePixelRatio);
 }

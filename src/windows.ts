@@ -22,6 +22,7 @@ import {
   type LayoutContainer,
   type LayoutNode,
 } from './layout';
+import { getDisplayScale } from './dpi';
 
 type WindowView = {
   toolbar: BrowserWindow;
@@ -43,7 +44,20 @@ export const focusedView: {
 
 export const windowViews = new WeakMap<BrowserWindow, WindowView>();
 
-export const TOOLBAR_HEIGHT = 40;
+const TOOLBAR_HEIGHT = 40;
+
+/**
+ * NOTE: the happens before load but after frame navigate
+ * this is necessary because zoom can only be set when a URL is associated with the webContents
+ *
+ * This also prevents users from persisting zoom level which is bad, so we probably want
+ * to store that somewhere if the user changes zoom and restore that number instead
+ */
+function resetForFrameQuirk(webContents: WebContents) {
+  webContents.once('did-frame-navigate', () => {
+    webContents.setZoomFactor(1);
+  });
+}
 
 export const managedViews: WindowView[] = [];
 
@@ -58,7 +72,7 @@ export async function createWindowWithToolbar(
   initialUrl = 'https://github.com/chase/awrit',
 ): Promise<WindowView> {
   // Create layout container with device pixel dimensions
-  const layoutContainer = layout(size.width, size.height, 1);
+  const layoutContainer = layout(size.width, size.height, getDisplayScale());
 
   // Create layout nodes for toolbar and content
   const toolbarNode = row({ height: px(TOOLBAR_HEIGHT), tag: 'toolbar' });
@@ -66,6 +80,7 @@ export async function createWindowWithToolbar(
 
   // Calculate layout
   calculateLayout(layoutContainer, [toolbarNode, contentNode]);
+  // process.emit('SIGINT');
 
   // this deals with the DPI scale rounding error causing the buffer to be too small
   const scaledSize = {
@@ -93,10 +108,10 @@ export async function createWindowWithToolbar(
 
   const toolbar = new BrowserWindow({
     ...sharedConstructorOptions,
-    width: toolbarNode.computedLayout.width,
-    height: toolbarNode.computedLayout.height,
+    ...toolbarNode.computedLayout,
 
     webPreferences: {
+      zoomFactor: 1,
       offscreen: true,
       nodeIntegration: false,
       contextIsolation: true,
@@ -107,12 +122,12 @@ export async function createWindowWithToolbar(
 
   const content = new BrowserWindow({
     ...sharedConstructorOptions,
-    width: contentNode.computedLayout.width,
-    height: contentNode.computedLayout.height,
+    ...contentNode.computedLayout,
 
     ...(options.transparent ? transparentWindowSettings : {}),
 
     webPreferences: {
+      zoomFactor: 1,
       session: await sessionPromise,
 
       sandbox: true,
@@ -150,8 +165,10 @@ export async function createWindowWithToolbar(
       activate: false,
     });
   } else {
+    resetForFrameQuirk(toolbar.webContents);
     toolbar.webContents.loadFile('../dist/toolbar/index.html');
   }
+  resetForFrameQuirk(content.webContents);
   content.webContents.loadURL(initialUrl);
 
   const view: WindowView = {

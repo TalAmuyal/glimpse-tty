@@ -72,11 +72,11 @@ describe('Layout System', () => {
     const container = layout(1600, 1200, 2);
 
     // Root node should be in logical pixels (800x600)
-    expect(container.root.width).toEqual({ value: 800, unit: 'px' });
-    expect(container.root.height).toEqual({ value: 600, unit: 'px' });
+    expect(container.root.width).toEqual({ value: 1600, unit: 'dpx' });
+    expect(container.root.height).toEqual({ value: 1200, unit: 'dpx' });
     expect(container.devicePixelRatio).toBe(2);
-    expect(container.logicalWidth).toBe(800);
-    expect(container.logicalHeight).toBe(600);
+    expect(container.logicalWidth).toBe(1600);
+    expect(container.logicalHeight).toBe(1200);
   });
 
   test('layout a simple node', () => {

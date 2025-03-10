@@ -3,7 +3,7 @@ import { resolve, join } from 'node:path';
 import { $, type ShellError, type Subprocess } from 'bun';
 import { getKittyColorsAsCSS } from './kittyColors';
 import { server } from './devServer';
-import { DPI_SCALE } from '../dpi';
+import { getDisplayScale } from '../dpi';
 
 const root = resolve(__dirname, '../../');
 
@@ -58,7 +58,8 @@ children.push([
     [
       electronPath as unknown as string,
       join(root, 'dist/index.js'),
-      '--high-dpi-support=true',
+      '--high-dpi-support=1',
+      `--force-device-scale-factor=${getDisplayScale()}`,
       ...process.argv.slice(2),
     ],
     {

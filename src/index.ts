@@ -60,7 +60,7 @@ function inputHandler(evt: TermEvent) {
   }
 
   // Graphics protocol events now come through graphics events
-  if (evt.eventType === 'graphics') {
+  if (options['debug-paint'] && evt.eventType === 'graphics') {
     console_.error('Graphics protocol: ', evt.graphics);
   }
 

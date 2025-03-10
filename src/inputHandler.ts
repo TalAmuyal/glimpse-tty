@@ -1,5 +1,5 @@
 import type { TermEvent } from 'awrit-native-rs';
-import { focusedView, TOOLBAR_HEIGHT } from './windows';
+import { focusedView } from './windows';
 
 const WHEEL_DELTA = 100;
 
@@ -44,12 +44,20 @@ export function handleInput(evt: TermEvent) {
     case 'mouse': {
       const DPI_SCALE = view.layoutContainer.devicePixelRatio;
       const { kind, button, x, y, modifiers } = evt.mouseEvent;
-      const adjustedX = Math.floor((x ?? 0) / DPI_SCALE);
-      const yOffset = y > TOOLBAR_HEIGHT ? TOOLBAR_HEIGHT : 0;
-      const adjustedY = Math.floor(((y ?? yOffset) - yOffset) / DPI_SCALE);
+      const rawX = x ?? 0;
+      const rawY = y ?? 0;
 
-      const focusedContent =
-        y > TOOLBAR_HEIGHT ? view.content.webContents : view.toolbar.webContents;
+      // Determine which region we're in based on layout
+      const { toolbarNode } = view;
+      const isInToolbar = rawY <= toolbarNode.computedLayout.height;
+
+      // Calculate position relative to the target component
+      const adjustedX = Math.floor(rawX / DPI_SCALE);
+      // TODO: why is this 4 pixels off?
+      const adjustedY =
+        Math.floor((rawY - (isInToolbar ? 0 : toolbarNode.computedLayout.height)) / DPI_SCALE) - 4;
+
+      const focusedContent = isInToolbar ? view.toolbar.webContents : view.content.webContents;
 
       if (kind === 'scrollUp' || kind === 'scrollDown') {
         view.content.webContents.sendInputEvent({
@@ -97,7 +105,6 @@ export function handleInput(evt: TermEvent) {
             view.toolbar.focusOnWebView();
           }
           view.focusedContent = focusedContent;
-          // view.focusedContent.focus();
         }
       }
       break;
