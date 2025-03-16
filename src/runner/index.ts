@@ -1,7 +1,7 @@
 import electronPath from 'electron';
 import { resolve, join } from 'node:path';
 import { $, type ShellError, type Subprocess } from 'bun';
-import { getKittyColorsAsCSS } from './kittyColors';
+import { colorsToTailwind, queryColors } from './kittyColors';
 import { server } from './devServer';
 import { getDisplayScale } from '../dpi';
 
@@ -25,15 +25,23 @@ await $`mkdir -p dist`.nothrow().quiet();
     process.exit(1);
   }
 }
-try {
-  const css = getKittyColorsAsCSS(true);
-  await Bun.write(join(root, 'dist/kitty.css'), css);
-} catch {
-  console.error('Failed to get kitty colors');
-}
 
-if (!(await Bun.file(join(root, 'dist/toolbar/index.html')).exists())) {
+if (
+  !(await Bun.file(join(root, 'dist/toolbar/index.html')).exists()) ||
+  process.argv.includes('--rebuild')
+) {
   console.error('building toolbar');
+  try {
+    const colors = await queryColors();
+    if (!colors) {
+      console.error('Failed to query terminal colors');
+    } else {
+      await Bun.write(join(root, 'dist/kitty.css'), colorsToTailwind(colors));
+    }
+  } catch {
+    console.error('Failed to query terminal colors');
+  }
+
   try {
     await $`bun ${join(root, 'node_modules/vite/bin/vite.js')} build`
       .cwd(join(root, 'src/runner'))

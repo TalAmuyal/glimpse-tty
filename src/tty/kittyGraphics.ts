@@ -1,10 +1,9 @@
-import { stdout } from 'node:process';
 import { GFX } from './escapeCodes';
 import type { Rect, Size } from './graphics';
 import { options } from '../args';
 import type { ShmGraphicBuffer } from 'awrit-native-rs';
 import { placeCursor } from './output';
-import { console_ } from '../console';
+const { stdout } = process;
 
 let imageId_ = 1;
 

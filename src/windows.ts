@@ -25,6 +25,8 @@ import {
 } from './layout';
 import { getDisplayScale } from './dpi';
 import { features } from './features';
+import { OSC } from './tty/escapeCodes';
+import { updateCursor } from './tty/cursor';
 
 type WindowView = {
   toolbar: BrowserWindow;
@@ -184,6 +186,9 @@ export async function createWindowWithToolbar(
   }
   resetForFrameQuirk(content.webContents);
   content.webContents.loadURL(initialUrl);
+
+  toolbar.webContents.on('cursor-changed', updateCursor);
+  content.webContents.on('cursor-changed', updateCursor);
 
   const view: WindowView = {
     toolbar,

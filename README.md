@@ -33,6 +33,12 @@ cd awrit
 # if the URL protocol is not included, https: is used by default
 ```
 
+For more options look at the help:
+
+```bash
+./awrit --help
+```
+
 The `data:` URL in the demo video is the following:
 
 ```bash

@@ -70,7 +70,7 @@ export function Toolbar() {
   };
 
   return (
-    <div class="h-screen flex items-center bg-kitty-bg border-b-2 border-active-border text-kitty-fg">
+    <div class="h-screen flex items-center bg-kitty-bg border-b-2 border-kitty-fg/20 border-active-border text-kitty-fg">
       <div class="flex items-center w-full h-full px-1 box-border">
         <div class="flex gap-1 mx-1">
           <Button
@@ -101,10 +101,9 @@ export function Toolbar() {
           spellcheck="false"
           onClick={handleInputClick}
           onKeyDown={handleUrlSubmit}
-          class={`flex-1 h-6 px-1 text-sm border rounded-xs border-active-border selection:bg-selection-background selection:text-selection-foreground ${isLoading()
-              ? 'bg-kitty-fg/10 border-inactive-border/50 text-kitty-fg/50'
-              : 'bg-kitty-fg/10'
-            }`}
+          class={`flex-1 h-6 px-1 text-sm border rounded-xs border-kitty-fg/50 focus:border-kitty-fg selection:bg-selection-background selection:text-selection-foreground focus:outline-none ${
+            isLoading() ? 'bg-kitty-fg/10 border-kitty-fg/50 text-kitty-fg/50' : 'bg-kitty-fg/10'
+          }`}
         />
       </div>
     </div>

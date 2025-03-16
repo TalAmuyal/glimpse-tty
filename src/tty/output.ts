@@ -1,4 +1,3 @@
-import { stdout } from 'node:process';
 import {
   CLEAR_SCREEN,
   CSI,
@@ -15,6 +14,7 @@ import {
   SAVE_PRIVATE_MODE_VALUES,
 } from './escapeCodes';
 import type { Point } from './graphics';
+const { stdout } = process;
 
 export const clearScreen = () => {
   stdout.write(CLEAR_SCREEN);

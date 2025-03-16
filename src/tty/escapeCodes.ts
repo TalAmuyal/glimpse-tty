@@ -39,6 +39,16 @@ export function ParseGFXStatus(str: string) {
   };
 }
 
+export function OSC(strings: TemplateStringsArray, ...args: StringLike[]) {
+  let ret = `${ESC_CODE}]`;
+  for (let n = 0; n < strings.length; n++) {
+    ret += strings[n];
+    if (n < args.length) ret += args[n];
+  }
+  ret += `${ESC_CODE}\\`;
+  return ret;
+}
+
 export const MODE = '?'; // DEC private mode
 export const S7C1T = ESC` F`;
 export const SAVE_CURSOR = ESC`7`;
