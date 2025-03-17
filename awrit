@@ -2,11 +2,23 @@
 
 set -e
 
-BASE_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE:-$0}")" &>/dev/null && pwd)
+# readlink -f but works on macOS too
+resolve_link() {
+  local target="$1"
+  while [ -L "$target" ]; do
+    target="$(readlink "$target")"
+    if [[ "$target" != /* ]]; then
+      target="$(dirname "$1")/$target"
+    fi
+  done
+  echo "$target"
+}
+
+BASE_DIR=$(cd -- "$(dirname -- "$(resolve_link "${BASH_SOURCE:-$0}")")" &>/dev/null && pwd)
 if [ ! -d "$BASE_DIR/node_modules" ]; then
     "$BASE_DIR/setup.sh"
 fi
 
 BUN="$BASE_DIR/.bun/bin/bun"
 echo "shim" "$@" > "$BASE_DIR/awrit_error.txt"
-exec -a awrit "$BUN" run ./src/runner "$@" 2>"$BASE_DIR/awrit_error.txt"
+exec -a awrit "$BUN" run "$BASE_DIR/src/runner" "$@" 2>"$BASE_DIR/awrit_error.txt"
