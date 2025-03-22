@@ -1,3 +1,8 @@
+/** Homepage
+ * The page that's displayed by default when no URL is provided
+ **/
+const homepage = 'https://github.com/chase/awrit';
+
 /** Keybindings
  *
  * @typedef {import('./src/keybindings').KeyBindingAction} KeyBindingAction
@@ -89,6 +94,7 @@ function find({ view }) {
 }
 
 const config = {
+  homepage,
   keybindings,
 };
 

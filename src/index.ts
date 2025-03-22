@@ -18,7 +18,10 @@ import { loadKeyBindings } from './keybindings';
 import fs from 'node:fs';
 import path from 'node:path';
 
+let homepage = 'https://github.com/chase/awrit';
+
 function loadConfig(config: typeof import('../config.js')) {
+  if (config.homepage) homepage = config.homepage;
   if (config.keybindings) {
     if (process.platform === 'darwin') {
       Object.assign(config.keybindings, config.keybindings.mac);
@@ -27,8 +30,8 @@ function loadConfig(config: typeof import('../config.js')) {
       Object.assign(config.keybindings, config.keybindings.linux);
       config.keybindings.mac = undefined;
     }
+    loadKeyBindings(config);
   }
-  loadKeyBindings(config);
 }
 
 if (options.help) {
@@ -70,7 +73,7 @@ dialog.showErrorBox = (title, content) => {
   console_.error(title, content);
 };
 
-const INITIAL_URL = options.url || 'https://github.com/chase/awrit';
+const INITIAL_URL = options.url || homepage;
 
 let exiting = false;
 let quitListening = () => {};
