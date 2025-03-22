@@ -26,8 +26,12 @@ await $`mkdir -p dist`.nothrow().quiet();
   }
 }
 
+const version = require(join(root, 'package.json')).version;
+const distVersion = Bun.file(join(root, 'dist/version'));
+
 if (
-  !(await Bun.file(join(root, 'dist/toolbar/index.html')).exists()) ||
+  !(await distVersion.exists()) ||
+  (await distVersion.text()) !== version ||
   process.argv.includes('--rebuild')
 ) {
   console.error('building toolbar');
@@ -49,7 +53,10 @@ if (
   } catch (e) {
     const e_ = e as unknown as ShellError;
     console.error(e_.stderr.toString());
+    process.exit(1);
   }
+
+  distVersion.write(version);
 }
 
 const children: [string, Subprocess][] = [];

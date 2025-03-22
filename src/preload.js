@@ -9,10 +9,15 @@ contextBridge.exposeInMainWorld('ipc', {
   refresh: () => ipcRenderer.send('toolbar:navigate-refresh'),
   navigateTo: (url) => ipcRenderer.send('toolbar:navigate-to', url),
 
+  // Find in page functions
+  findInPage: (text, options) => ipcRenderer.invoke('findInPage', text, options),
+  stopFindInPage: () => ipcRenderer.invoke('stopFindInPage'),
+
   // Event listeners
   onLoadingStarted: (callback) => ipcRenderer.on('content:loading-started', callback),
   onLoadingStopped: (callback) => ipcRenderer.on('content:loading-stopped', callback),
   onUrlChanged: (callback) => ipcRenderer.on('content:url-changed', (_event, url) => callback(url)),
   onNavigationStateChanged: (callback) =>
     ipcRenderer.on('content:navigation-state-changed', (_event, state) => callback(state)),
+  onToggleFind: (callback) => ipcRenderer.on('toolbar:toggle-find', callback),
 });

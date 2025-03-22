@@ -28,6 +28,12 @@ import { features } from './features';
 import { updateCursor } from './tty/cursor';
 import { debounce } from './debounce';
 
+export type Actions = {
+  back: () => void;
+  forward: () => void;
+  refresh: () => void;
+};
+
 export type WindowView = {
   toolbar: BrowserWindow;
   content: BrowserWindow;
@@ -35,7 +41,7 @@ export type WindowView = {
   layoutContainer: LayoutContainer;
   toolbarNode: LayoutNode;
   contentNode: LayoutNode;
-};
+} & Actions;
 
 export const focusedView: {
   current: WindowView | null;
@@ -209,6 +215,15 @@ export async function createWindowWithToolbar(
     layoutContainer,
     toolbarNode,
     contentNode,
+    back: () => {
+      content.webContents.goBack();
+    },
+    forward: () => {
+      content.webContents.goForward();
+    },
+    refresh: () => {
+      content.webContents.reload();
+    },
   };
 
   // Add to managed windows

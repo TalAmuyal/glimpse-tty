@@ -1,4 +1,5 @@
-/**
+/** Keybindings
+ *
  * @typedef {import('./src/keybindings').KeyBindingAction} KeyBindingAction
  */
 
@@ -37,41 +38,75 @@
  * }
  * ```
  *
- * @type {Record<string, KeyBindingAction> & { mac?: Record<string, KeyBindingAction>, linux?: Record<string, KeyBindingAction> }}
+ * @type {Record<string, KeyBindingAction> & {
+ *   mac?: Record<string, KeyBindingAction>,
+ *   linux?: Record<string, KeyBindingAction>
+ * }}
  */
 const keybindings = {
   '<C-c>': () => {
     process.emit('SIGINT');
   },
-  '<Mouse4>': ({ view }) => {
-    view.focusedContent?.navigationHistory.goBack();
-  },
-  '<Mouse5>': ({ view }) => {
-    view.focusedContent?.navigationHistory.goForward();
-  },
+  '<Mouse4>': back,
+  '<Mouse5>': forward,
   mac: {
     '<M-a>': ({ view }) => {
       view.focusedContent.selectAll();
     },
-    '<M-]>': ({ view }) => {
-      view.focusedContent?.navigationHistory.goForward();
-    },
-    '<M-[>': ({ view }) => {
-      view.focusedContent?.navigationHistory.goBack();
-    },
+    '<M-]>': forward,
+    '<M-[>': back,
+    '<M-f>': find,
+    '<M-r>': refresh,
   },
   linux: {
-    '<C-]>': ({ view }) => {
-      view.focusedContent?.navigationHistory.goForward();
-    },
-    '<C-[>': ({ view }) => {
-      view.focusedContent?.navigationHistory.goBack();
-    },
+    '<C-]>': forward,
+    '<C-[>': back,
+    '<C-f>': find,
+    '<C-r>': refresh,
   },
 };
+
+/** @type {KeyBindingAction} */
+function back({ view }) {
+  view.back();
+}
+
+/** @type {KeyBindingAction} */
+function forward({ view }) {
+  view.forward();
+}
+
+/** @type {KeyBindingAction} */
+function refresh({ view }) {
+  view.refresh();
+}
+
+function find({ view }) {
+  view.toolbar.webContents.send('toolbar:toggle-find');
+  view.content.blurWebView();
+  view.toolbar.focusOnWebView();
+  view.focusedContent = view.toolbar.webContents;
+}
 
 const config = {
   keybindings,
 };
 
 module.exports = config;
+
+/** Utilities */
+
+const util = require('node:util');
+
+function debug(...args) {
+  process.stderr.write(
+    util
+      .formatWithOptions(
+        {
+          colors: true,
+        },
+        ...args,
+      )
+      .replaceAll('\n', '\r\n'),
+  );
+}

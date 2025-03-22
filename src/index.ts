@@ -1,4 +1,4 @@
-import { app, dialog } from 'electron';
+import { app, dialog, ipcMain } from 'electron';
 import {
   termEnableFeatures,
   listenForInput,
@@ -136,6 +136,17 @@ app.commandLine.appendSwitch('disable-logging');
 // Disable Chrome DevTools logging
 app.commandLine.appendSwitch('silent-debugger-extension-api');
 
-app.whenReady().then(() => {
-  createWindowWithToolbar(getWindowSize(), INITIAL_URL);
+app.whenReady().then(async () => {
+  const window = await createWindowWithToolbar(getWindowSize(), INITIAL_URL);
+
+  ipcMain.handle('findInPage', (_, text: string, opts) => {
+    window.content.webContents.findInPage(text, opts);
+  });
+
+  ipcMain.handle('stopFindInPage', () => {
+    window.content.webContents.stopFindInPage('clearSelection');
+    window.toolbar.blurWebView();
+    window.content.focusOnWebView();
+    window.focusedContent = window.content.webContents;
+  });
 });
