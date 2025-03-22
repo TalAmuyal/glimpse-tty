@@ -114,10 +114,10 @@ export function handleInput(evt: TermEvent) {
       if (kind === 'mouseDown' && button === 'left') {
         if (focusedContent !== view.focusedContent) {
           if (focusedContent === view.content.webContents) {
-            view.content.blurWebView();
+            view.toolbar.blurWebView();
             view.content.focusOnWebView();
           } else {
-            view.toolbar.blurWebView();
+            view.content.blurWebView();
             view.toolbar.focusOnWebView();
           }
           view.focusedContent = focusedContent;

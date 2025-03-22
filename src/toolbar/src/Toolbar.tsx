@@ -30,7 +30,7 @@ function Button(props: ComponentProps<'button'>) {
   return (
     <button
       {...others}
-      class={`size-6 text-lg rounded leading-none hover:bg-kitty-fg/10 disabled:text-kitty-fg/50 disabled:hover:bg-transparent text-kitty-fg ${local.class}`}
+      class={`size-6 focus:outline-1 focus:outline-kitty-fg/50 text-lg rounded leading-none hover:bg-kitty-fg/10 disabled:text-kitty-fg/50 disabled:hover:bg-transparent text-kitty-fg ${local.class}`}
     />
   );
 }
@@ -40,7 +40,7 @@ function Checkbox(props: ComponentProps<'button'> & { checked: boolean }) {
   return (
     <button
       {...others}
-      class={`size-6 text-lg rounded leading-none hover:bg-kitty-fg/10 text-kitty-fg ${local.class}`}
+      class={`size-6 focus:outline-1 focus:outline-kitty-fg/50 text-lg rounded leading-none hover:bg-kitty-fg/10 text-kitty-fg ${local.class}`}
     >
       {local.checked ? '☒' : '☐'}
     </button>
@@ -51,7 +51,6 @@ export function Toolbar() {
   const [isLoading, setIsLoading] = createSignal(false);
   const [url, setUrl] = createSignal('');
   const [isFindMode, setIsFindMode] = createSignal(false);
-  const [findText, setFindText] = createSignal('');
   const [navigationState, setNavigationState] = createSignal<NavigationState>({
     canGoBack: false,
     canGoForward: false,
@@ -68,7 +67,6 @@ export function Toolbar() {
   window.ipc.onToggleFind(() => {
     if (!isFindMode()) {
       setIsFindMode(true);
-      setFindText('');
       // Focus the find input on next tick
       setTimeout(() => findInputRef?.focus(), 0);
     } else {
@@ -104,6 +102,12 @@ export function Toolbar() {
     }
   };
 
+  const handleFind = () => {
+    if (!findInputRef) return;
+    const text = findInputRef.value;
+    window.ipc.findInPage(text, { forward: true, matchCase: matchCase() });
+  };
+
   const handleFindSubmit = (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       const text = (e.currentTarget as HTMLInputElement).value;
@@ -114,40 +118,31 @@ export function Toolbar() {
     }
   };
 
+  const handleFindNav = (forward: boolean) => {
+    if (!findInputRef) return;
+    const text = findInputRef.value;
+    window.ipc.findInPage(text, { forward, matchCase: matchCase() });
+  };
+
   return (
     <div class="h-screen flex items-center bg-kitty-bg border-b-2 border-kitty-fg/20 border-active-border text-kitty-fg">
       <div class="flex items-center w-full h-full px-1 box-border">
-        <div class="flex gap-1 mx-1">
-          <Button
-            title="Back"
-            disabled={!navigationState().canGoBack}
-            onClick={() => window.ipc.navigateBack()}
-            class="text-xl pb-[1px]"
-          >
-            ←
-          </Button>
-          <Button
-            title="Forward"
-            disabled={!navigationState().canGoForward}
-            onClick={() => window.ipc.navigateForward()}
-            class="text-xl pb-[1px]"
-          >
-            →
-          </Button>
-          <Show when={!isFindMode()}>
-            <Button title={isLoading() ? 'Stop' : 'Refresh'} onClick={() => window.ipc.refresh()}>
-              {isLoading() ? '✕' : '↻'}
-            </Button>
-          </Show>
-        </div>
         <Show when={isFindMode()}>
+          <div class="flex gap-1 mx-1">
+            <Button title="Previous" onClick={() => handleFindNav(false)} class="text-xl pb-[1px]">
+              ⯅
+            </Button>
+            <Button title="Next" onClick={() => handleFindNav(true)} class="text-xl pt-[1px]">
+              ⯆
+            </Button>
+          </div>
           <input
             ref={findInputRef}
             type="text"
+            spellcheck="false"
             placeholder="Find in page..."
-            value={findText()}
-            onInput={(e) => setFindText((e.currentTarget as HTMLInputElement).value)}
             onKeyDown={handleFindSubmit}
+            onInput={handleFind}
             class="grow h-6 ml-2 px-1 text-sm border rounded-xs border-kitty-fg/50 focus:border-kitty-fg selection:bg-selection-background selection:text-selection-foreground focus:outline-none bg-kitty-fg/10"
           />
           <label class="flex items-center text-sm ml-2">
@@ -160,6 +155,27 @@ export function Toolbar() {
           </label>
         </Show>
         <Show when={!isFindMode()}>
+          <div class="flex gap-1 mx-1">
+            <Button
+              title="Back"
+              disabled={!navigationState().canGoBack}
+              onClick={() => window.ipc.navigateBack()}
+              class="text-xl pb-[1px]"
+            >
+              ←
+            </Button>
+            <Button
+              title="Forward"
+              disabled={!navigationState().canGoForward}
+              onClick={() => window.ipc.navigateForward()}
+              class="text-xl pb-[1px]"
+            >
+              →
+            </Button>
+            <Button title={isLoading() ? 'Stop' : 'Refresh'} onClick={() => window.ipc.refresh()}>
+              {isLoading() ? '✕' : '↻'}
+            </Button>
+          </div>
           <input
             ref={inputRef}
             type="text"

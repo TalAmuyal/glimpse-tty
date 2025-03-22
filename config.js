@@ -1,16 +1,7 @@
-/**
+/** Keybindings
+ *
  * @typedef {import('./src/keybindings').KeyBindingAction} KeyBindingAction
  */
-
-/** @type {KeyBindingAction} */
-function back({ view }) {
-  view.back();
-}
-
-/** @type {KeyBindingAction} */
-function forward({ view }) {
-  view.forward();
-}
 
 /**
  * Keybindings configuration object that maps Neovim-style key sequences to actions.
@@ -64,27 +55,58 @@ const keybindings = {
     },
     '<M-]>': forward,
     '<M-[>': back,
-    '<M-f>': ({ view }) => {
-      view.toolbar.webContents.send('toolbar:toggle-find');
-      view.content.blurWebView();
-      view.toolbar.focusOnWebView();
-      view.focusedContent = view.toolbar.webContents;
-    },
+    '<M-f>': find,
+    '<M-r>': refresh,
   },
   linux: {
     '<C-]>': forward,
     '<C-[>': back,
-    '<C-f>': ({ view }) => {
-      view.toolbar.webContents.send('toolbar:toggle-find');
-      view.content.blurWebView();
-      view.toolbar.focusOnWebView();
-      view.focusedContent = view.toolbar.webContents;
-    },
+    '<C-f>': find,
+    '<C-r>': refresh,
   },
 };
+
+/** @type {KeyBindingAction} */
+function back({ view }) {
+  view.back();
+}
+
+/** @type {KeyBindingAction} */
+function forward({ view }) {
+  view.forward();
+}
+
+/** @type {KeyBindingAction} */
+function refresh({ view }) {
+  view.refresh();
+}
+
+function find({ view }) {
+  view.toolbar.webContents.send('toolbar:toggle-find');
+  view.content.blurWebView();
+  view.toolbar.focusOnWebView();
+  view.focusedContent = view.toolbar.webContents;
+}
 
 const config = {
   keybindings,
 };
 
 module.exports = config;
+
+/** Utilities */
+
+const util = require('node:util');
+
+function debug(...args) {
+  process.stderr.write(
+    util
+      .formatWithOptions(
+        {
+          colors: true,
+        },
+        ...args,
+      )
+      .replaceAll('\n', '\r\n'),
+  );
+}

@@ -139,8 +139,8 @@ app.commandLine.appendSwitch('silent-debugger-extension-api');
 app.whenReady().then(async () => {
   const window = await createWindowWithToolbar(getWindowSize(), INITIAL_URL);
 
-  ipcMain.handle('findInPage', (_, text: string) => {
-    window.content.webContents.findInPage(text);
+  ipcMain.handle('findInPage', (_, text: string, opts) => {
+    window.content.webContents.findInPage(text, opts);
   });
 
   ipcMain.handle('stopFindInPage', () => {
