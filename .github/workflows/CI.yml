@@ -28,7 +28,7 @@ jobs:
         settings:
           - host: macos-latest
             target: x86_64-apple-darwin
-            build: yarn ci --target x86_64-apple-darwin
+            build: yarn ci --target x86_64-apple-darwin && rm awrit-native-rs.darwin-arm64.node
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             build: yarn ci --target x86_64-unknown-linux-gnu
