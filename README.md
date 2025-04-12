@@ -25,15 +25,11 @@ By default, this will download to `~/awrit` and link to `~/.local/bin/awrit`.
 
 You can configure `awrit` by changing `~/awrit/config.js`. See [Configuration](#configuration) for more information.
 
-### (Optional) Change Download Location or Install Prefix
-
-You can change the download location by adding `DOWNLOAD_TO=`, for example downloading to `~/somewhere-completely-different`:
+#### (Optional) Change Download Location or Install Prefix
 
 ``` bash
 curl -fsS https://chase.github.io/awrit/get | DOWNLOAD_TO=~/somewhere-completely-different bash
 ```
-
-You can change the install prefix by adding `INSTALL_TO=`, for example downloading to `~/.not-local`:
 
 ``` bash
 curl -fsS https://chase.github.io/awrit/get | INSTALL_TO=~/.not-local bash
