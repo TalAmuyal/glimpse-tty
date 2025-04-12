@@ -87,10 +87,11 @@ if [ ! -d "$BUN_INSTALL_DIR" ]; then
 fi
 
 if [ ! -d "$BASE_DIR/node_modules" ]; then
+  (cd awrit-native-rs && "$BUN_EXE" scripts/download-binary.js)
   "$BUN_EXE" install
 
   # Patch Electron.app to not display in the Dock, because it seems odd
   if [ "$(uname -s)" = "Darwin" ]; then
-    sed -i '' 's/<\/dict>/    <key>LSUIElement<\/key>\n    <true\/>\n<\/dict>/' "$BASE_DIR/node_modules/electron/dist/Electron.app/Contents/Info.plist"
+    sed -i '' 's/<\/dict>/    <key>LSUIElement<\/key>\n    <true\/>\n<\/dict>/' "$BASE_DIR/node_modules/electron/dist/Electron.app/Contents/Info.plist" || true
   fi
 fi
