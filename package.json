@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "awrit-native-rs": "./awrit-native-rs",
+    "electron": "^35.1.5",
     "electron-chrome-context-menu": "^1.1.0",
     "electron-chrome-extensions": "^4.7.0",
     "electron-chrome-web-store": "^0.11.0"
@@ -32,7 +33,6 @@
     "@sinonjs/fake-timers": "^14.0.0",
     "@types/node": "^22.13.10",
     "@types/sinonjs__fake-timers": "^8.1.5",
-    "electron": "35.0.2",
     "typescript": "^5.8.3"
   },
   "trustedDependencies": ["@biomejs/biome", "awrit-native-rs", "core-js", "electron", "esbuild"]
