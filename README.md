@@ -65,7 +65,7 @@ For more details on keybinding syntax and available actions, see the comments in
 
 ## Contributing
 
-See [Contributing to Awrit](/chase/awrit/blob/electron/CONTRIBUTING.md#contributing-to-awrit).
+See [Contributing to Awrit](/CONTRIBUTING.md#contributing-to-awrit).
 
 ## Development
 
@@ -88,4 +88,4 @@ git checkout upstream/electron
 git switch -c 'my-feature-branch'
 ```
 
-Read [Your First Code Contribution](/chase/awrit/blob/electron/CONTRIBUTING.md#your-first-code-contribution) for more information on making a PR.
+Read [Your First Code Contribution](/CONTRIBUTING.md#your-first-code-contribution) for more information on making a PR.
