@@ -15,28 +15,34 @@ Yep, actual Chromium being rendered in your favorite terminal that supports the 
 - Tiled layout without a tiling window manager using [Kitty's layouts](https://sw.kovidgoyal.net/kitty/layouts/)
 - Add fancy UI using web technologies, so NeoVim can pretend it is Emacs instead of the other way around
 
-## Running
+## Install
 
 ``` bash
-git clone https://github.com/chase/awrit.git
-cd awrit
-./awrit
+curl -fsS https://chase.github.io/awrit/get | bash
 ```
 
-### (Optional) Install
+By default, this will download to `~/awrit` and link to `~/.local/bin/awrit`.
 
-The following installs a link to `awrit` in `~/.local/bin`:
+You can configure `awrit` by changing `~/awrit/config.js`. See [Configuration](#configuration) for more information.
+
+### (Optional) Change Download Location or Install Prefix
+
+You can change the download location by adding `DOWNLOAD_TO=`, for example downloading to `~/somewhere-completely-different`:
 
 ``` bash
-PREFIX=~/.local/bin
-DIR="$PWD"
-(cd "$PREFIX" && ln -s "$DIR/awrit")
+curl -fsS https://chase.github.io/awrit/get | DOWNLOAD_TO=~/somewhere-completely-different bash
+```
+
+You can change the install prefix by adding `INSTALL_TO=`, for example downloading to `~/.not-local`:
+
+``` bash
+curl -fsS https://chase.github.io/awrit/get | INSTALL_TO=~/.not-local bash
 ```
 
 ## Usage
 
 ```bash
-./awrit [url]
+awrit [url]
 
 # if url is not provided, it will go to the awrit homepage (this is temporary, promise)
 # the URL protocol can be http:, https:, or data:
@@ -46,7 +52,7 @@ DIR="$PWD"
 For more options look at the help:
 
 ```bash
-./awrit --help
+awrit --help
 ```
 
 ## Configuration
@@ -56,3 +62,30 @@ For more options look at the help:
 Currently it only supports custom keybindings and changing the homepage that displays when no URL is provided.
 
 For more details on keybinding syntax and available actions, see the comments in `config.js`.
+
+## Contributing
+
+See [Contributing to Awrit](/chase/awrit/blob/electron/CONTRIBUTING.md#contributing-to-awrit).
+
+## Development
+
+Assuming you already have `git` installed, your installation of `awrit` will already be a Git repository.
+
+You can update `awrit` to use your fork by changing the origin:
+
+``` bash
+# note: you'll have to change the username some-kind-contributor to your GitHub username
+git remote set-url origin git@github.com:some-kind-contributor/awrit.git
+# also track the upstream electron branch
+git remote add upstream -f -t electron git@github.com:chase/awrit.git
+```
+
+You can make a branch (ex: my-feature-branch) off the latest changes by doing:
+
+```
+git fetch upstream electron
+git checkout upstream/electron
+git switch -c 'my-feature-branch'
+```
+
+Read [Your First Code Contribution](/chase/awrit/blob/electron/CONTRIBUTING.md#your-first-code-contribution) for more information on making a PR.
