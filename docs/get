@@ -55,13 +55,13 @@ success() {
 }
 
 tildify() {
-    if [[ $1 = $HOME/* ]]; then
-        local replacement=\~/
+  if [[ $1 = $HOME/* ]]; then
+    local replacement=\~/
 
-        echo "${1/$HOME\//$replacement}"
-    else
-        echo "$1"
-    fi
+    echo "${1/$HOME\//$replacement}"
+  else
+    echo "$1"
+  fi
 }
 
 bin_dir="$INSTALL_TO/bin"
@@ -88,18 +88,18 @@ else
   zip_file="$DOWNLOAD_TO/$ZIP"
   curl --fail --location --progress-bar --output $zip_file "$ZIP_URI" ||
     error "Failed to download awrit from \"$ZIP_URI\""
-  config_path="$DOWNLOAD_TO/config.js"
-  config_exists=false
-  if [[ -f $config_path ]]; then
-    config_exists=true
-    mv "$config_path" "${config_path}.bak"
-  fi
+      config_path="$DOWNLOAD_TO/config.js"
+      config_exists=false
+      if [[ -f $config_path ]]; then
+        config_exists=true
+        mv "$config_path" "${config_path}.bak"
+      fi
 
-  unzip -oqd "$DOWNLOAD_TO" $zip_file ||
-    error 'Failed to extract awrit'
+      unzip -oqd "$DOWNLOAD_TO" $zip_file ||
+        error 'Failed to extract awrit'
 
-  chmod +x "$DOWNLOAD_TO/setup.sh" "$DOWNLOAD_TO/awrit"
-  rm $zip_file
+      chmod +x "$DOWNLOAD_TO/setup.sh" "$DOWNLOAD_TO/awrit"
+      rm $zip_file
 fi
 
 mkdir -p $DOWNLOAD_TO/node_modules
@@ -144,111 +144,111 @@ install_dir="$DOWNLOAD_TO"
 tilde_bin_dir=$(tildify "$bin_dir")
 
 case $(basename "$SHELL") in
-fish)
+  fish)
     commands=(
-        "set --export PATH $bin_dir \$PATH"
+      "set --export PATH $bin_dir \$PATH"
     )
 
     fish_config=$HOME/.config/fish/config.fish
     tilde_fish_config=$(tildify "$fish_config")
 
     if [[ -w $fish_config ]]; then
-        {
-            echo -e '\n# awrit'
-
-            for command in "${commands[@]}"; do
-                echo "$command"
-            done
-        } >>"$fish_config"
-
-        info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_fish_config\""
-
-        refresh_command="source $(tildify $tilde_fish_config)"
-    else
-        echo "Manually add the directory to $tilde_fish_config (or similar):"
+      {
+        echo -e '\n# awrit'
 
         for command in "${commands[@]}"; do
-            info_bold "  $command"
+          echo "$command"
         done
+      } >>"$fish_config"
+
+      info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_fish_config\""
+
+      refresh_command="source $(tildify $tilde_fish_config)"
+    else
+      echo "Manually add the directory to $tilde_fish_config (or similar):"
+
+      for command in "${commands[@]}"; do
+        info_bold "  $command"
+      done
     fi
     ;;
-zsh)
+  zsh)
     commands=(
-        "export PATH=\"$bin_dir:\$PATH\""
+      "export PATH=\"$bin_dir:\$PATH\""
     )
 
     zsh_config=$HOME/.zshrc
     tilde_zsh_config=$(tildify "$zsh_config")
 
     if [[ -w $zsh_config ]]; then
-        {
-            echo -e '\n# awrit'
-
-            for command in "${commands[@]}"; do
-                echo "$command"
-            done
-        } >>"$zsh_config"
-
-        info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_zsh_config\""
-
-        refresh_command="exec $SHELL"
-    else
-        echo "Manually add $tilde_bin_dir to $tilde_zsh_config (or similar):"
+      {
+        echo -e '\n# awrit'
 
         for command in "${commands[@]}"; do
-            info_bold "  $command"
+          echo "$command"
         done
+      } >>"$zsh_config"
+
+      info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_zsh_config\""
+
+      refresh_command="exec $SHELL"
+    else
+      echo "Manually add $tilde_bin_dir to $tilde_zsh_config (or similar):"
+
+      for command in "${commands[@]}"; do
+        info_bold "  $command"
+      done
     fi
     ;;
-bash)
+  bash)
     commands=(
-        "export PATH=\"$bin_dir:\$PATH\""
+      "export PATH=\"$bin_dir:\$PATH\""
     )
 
     bash_configs=(
-        "$HOME/.bashrc"
-        "$HOME/.bash_profile"
+      "$HOME/.bashrc"
+      "$HOME/.bash_profile"
     )
 
     if [[ ${XDG_CONFIG_HOME:-} ]]; then
-        bash_configs+=(
-            "$XDG_CONFIG_HOME/.bash_profile"
-            "$XDG_CONFIG_HOME/.bashrc"
-            "$XDG_CONFIG_HOME/bash_profile"
-            "$XDG_CONFIG_HOME/bashrc"
-        )
+      bash_configs+=(
+      "$XDG_CONFIG_HOME/.bash_profile"
+      "$XDG_CONFIG_HOME/.bashrc"
+      "$XDG_CONFIG_HOME/bash_profile"
+      "$XDG_CONFIG_HOME/bashrc"
+    )
     fi
 
     set_manually=true
     for bash_config in "${bash_configs[@]}"; do
-        tilde_bash_config=$(tildify "$bash_config")
+      tilde_bash_config=$(tildify "$bash_config")
 
-        if [[ -w $bash_config ]]; then
-            {
-                echo -e '\n# awrit'
+      if [[ -w $bash_config ]]; then
+        {
+          echo -e '\n# awrit'
 
-                for command in "${commands[@]}"; do
-                    echo "$command"
-                done
-            } >>"$bash_config"
+          for command in "${commands[@]}"; do
+            echo "$command"
+          done
+        } >>"$bash_config"
 
-            info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_bash_config\""
+        info "Added \"$tilde_bin_dir\" to \$PATH in \"$tilde_bash_config\""
 
-            refresh_command="source $(tildify $bash_config)"
-            set_manually=false
-            break
-        fi
+        refresh_command="source $(tildify $bash_config)"
+        set_manually=false
+        break
+      fi
     done
 
     if [[ $set_manually = true ]]; then
-        echo "Manually add $tilde_bin_dir to $tilde_bash_config (or similar):"
+      echo "Manually add $tilde_bin_dir to $tilde_bash_config (or similar):"
 
-        for command in "${commands[@]}"; do
-            info_bold "  $command"
-        done
+      for command in "${commands[@]}"; do
+        info_bold "  $command"
+      done
     fi
     ;;
-*)
+  *)
     echo 'Manually add the directory to ~/.bashrc (or similar):'
     info_bold "  export PATH=\"$bin_dir:\$PATH\""
     ;;
@@ -258,7 +258,7 @@ echo
 info "To get started, run:"
 
 if [[ $refresh_command ]]; then
-    info_bold "  $refresh_command"
+  info_bold "  $refresh_command"
 fi
 
 info_bold "  awrit --help"
