@@ -15,7 +15,6 @@ dependencies = [
  "base64",
  "bgra-to-rgba",
  "crossterm",
- "ctor",
  "napi",
  "napi-build",
  "napi-derive",
