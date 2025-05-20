@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "awrit-native-rs": "./awrit-native-rs",
-    "electron": "^36.2.1",
+    "electron": "^35.4.0",
     "electron-chrome-context-menu": "^1.1.0",
     "electron-chrome-extensions": "^4.8.0",
     "electron-chrome-web-store": "^0.12.0"
@@ -31,9 +31,12 @@
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@sinonjs/fake-timers": "^14.0.0",
-    "@types/node": "^22.14.1",
+    "@types/node": "^22.15.19",
     "@types/sinonjs__fake-timers": "^8.1.5",
     "typescript": "^5.8.3"
   },
-  "trustedDependencies": ["@biomejs/biome", "awrit-native-rs", "core-js", "electron", "esbuild"]
+  "trustedDependencies": ["@biomejs/biome", "awrit-native-rs", "core-js", "electron", "esbuild"],
+  "patchedDependencies": {
+    "lru-cache@5.1.1": "patches/lru-cache@5.1.1.patch"
+  }
 }
