@@ -1,19 +1,22 @@
 {
 	"name": "awrit-native-rs",
-	"version": "2.0.2",
+	"version": "2.0.1",
 	"main": "index.js",
 	"types": "index.d.ts",
 	"license": "BSD-3-Clause",
 	"napi": {
-		"binaryName": "awrit-native-rs",
-		"targets": [
-      "aarch64-apple-darwin",
-      "x86_64-apple-darwin",
-      "x86_64-unknown-linux-gnu"
-    ]
+		"name": "awrit-native-rs",
+		"triples": {
+			"defaults": false,
+			"additional": [
+				"aarch64-apple-darwin",
+				"x86_64-apple-darwin",
+				"x86_64-unknown-linux-gnu"
+			]
+		}
 	},
 	"devDependencies": {
-		"@napi-rs/cli": "^3.0.0-alpha.89"
+		"@napi-rs/cli": "^2.18.4"
 	},
 	"scripts": {
 		"postinstall": "./run-shim scripts/download-binary.js",
