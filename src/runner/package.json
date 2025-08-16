@@ -7,14 +7,14 @@
     "typecheck": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
-    "solid-js": "^1.9.7",
-    "tailwindcss": "^4.1.11"
+    "solid-js": "^1.9.9",
+    "tailwindcss": "^4.1.12"
   },
   "devDependencies": {
-    "typescript": "~5.8.3",
+    "typescript": "~5.9.2",
     "vite": "^6.3.5",
-    "vite-plugin-solid": "^2.11.7",
-    "@tailwindcss/vite": "^4.1.11",
+    "vite-plugin-solid": "^2.11.8",
+    "@tailwindcss/vite": "^4.1.12",
     "@types/bun": "latest"
   },
   "patchedDependencies": {

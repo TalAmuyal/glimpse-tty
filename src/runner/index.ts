@@ -1,5 +1,5 @@
 import { possibleOptions, options } from '../args';
-import { $, type ShellError, type Subprocess } from 'bun';
+import { $, type Subprocess } from 'bun';
 import electronPath from 'electron';
 import { resolve, join } from 'node:path';
 import { colorsToTailwind, queryColors } from './kittyColors';
@@ -86,7 +86,7 @@ if (!(await distVersion.exists()) || (await distVersion.text()) !== version || o
       .cwd(join(root, 'src/runner'))
       .quiet();
   } catch (e) {
-    const e_ = e as unknown as ShellError;
+    const e_ = e as any;
     console.error(e_.stderr.toString());
     process.exit(1);
   }
