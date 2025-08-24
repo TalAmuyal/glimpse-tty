@@ -1,10 +1,15 @@
-import type { TermEvent } from 'awrit-native-rs';
+import type { TermEvent, KeyEvent as KeyEventOriginal } from 'awrit-native-rs';
 import { focusedView } from './windows';
 import { handleEvent as handleKeyBinding } from './keybindings';
 
 const WHEEL_DELTA = 100;
 
 const mouseEventTypes = ['mouseDown', 'mouseUp', 'mouseMove'] as const;
+// this is a fix for Electron going back and forth on what's supported for modifiers, despite being case insensitive;
+type KeyEventModifiers = Lowercase<KeyEventOriginal['modifiers'][number]>[];
+type KeyEvent = Omit<KeyEventOriginal, 'modifiers'> & {
+  modifiers: KeyEventModifiers;
+};
 
 function isSimpleMouseEvent(kind: unknown): kind is (typeof mouseEventTypes)[number] {
   return mouseEventTypes.includes(kind as (typeof mouseEventTypes)[number]);
@@ -25,7 +30,7 @@ export function handleInput(evt: TermEvent) {
       }
 
       const webContents = view.focusedContent;
-      const { code: keyCode, modifiers, down, isCharEvent } = evt.keyEvent;
+      const { code: keyCode, modifiers, down, isCharEvent } = evt.keyEvent as KeyEvent;
 
       if (isCharEvent && down) {
         webContents.sendInputEvent({

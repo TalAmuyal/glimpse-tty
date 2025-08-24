@@ -76,7 +76,7 @@ export function registerPaintedContent(
       result.size = imageBufferSize;
     }
 
-    const buffer = image.getBitmap();
+    const buffer = image.toBitmap();
     result.buffer.write(buffer, imageSize.width);
     containerFrame
       .loadFrame(frameNumber, result.buffer, imageSize)
@@ -129,7 +129,7 @@ export function registerPaintedContentFallback(
       replace = false;
       const buffer = new ShmGraphicBuffer(imageBufferSize);
       paintedImage?.free();
-      buffer.write(image.getBitmap(), imageSize.width);
+      buffer.write(image.toBitmap(), imageSize.width);
       paintedImage = paintImage(buffer, imageSize, position);
 
       result.buffer = buffer;
@@ -143,7 +143,7 @@ export function registerPaintedContentFallback(
     }
 
     if (replace && paintedImage) {
-      paintedImage.replace(image.getBitmap());
+      paintedImage.replace(image.toBitmap());
     }
   }
   contents.on('paint', paint);
