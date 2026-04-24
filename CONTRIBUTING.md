@@ -106,24 +106,44 @@ Enhancement suggestions are tracked as [Issues](https://github.com/chase/awrit/i
 
 ### Your First Code Contribution
 
-Install [Bun](https://bun.sh/).
+We use [mise](https://mise.jdx.dev) to manage tool versions (Bun, Node, Rust) and provide a uniform set of development tasks. Install mise, then clone your fork — mise will install the pinned tool versions on demand the first time you run any task.
 
-If you're making a contribution to `awrit-native-rs`, you'll also need to install [Rust](https://www.rust-lang.org/tools/install).
+```bash
+curl https://mise.run | sh
+```
+
+Common tasks, from the repo root:
+
+| Command | What it does |
+|---|---|
+| `mise start [url]` | Run awrit from this checkout (forwards arguments to `./awrit`) |
+| `mise test` | Run the Bun unit tests |
+| `mise check` | Typecheck + Biome lint + cargo clippy |
+| `mise format` | Format TypeScript/JSON with Biome |
+| `mise format:rust` | Format Rust with `cargo fmt` |
+| `mise build:native` | Rebuild the napi-rs native addon (only needed when editing `awrit-native-rs`) |
+| `mise clean` | Remove build artifacts and dependency trees |
+
+Run `mise tasks` to list every task.
+
+On Linux, Electron needs system libraries such as `libnss3`, `libgtk-3-0`, and `libasound2`. Install them through your distro's package manager — mise doesn't handle system packages.
+
+If you prefer not to use mise, the shims still work: install [Bun](https://bun.sh/) (and optionally [Rust](https://www.rust-lang.org/tools/install) for native-addon changes), then run `./awrit` — it bootstraps itself via `setup.sh`.
 
 Then:
 
 1. Make a fork of the repository
 2. Clone your fork
-3. Make your changes
-3. Make commit messages that make it easy to understand their intent for review
-4. Push the commit to your fork
-5. Make a pull request based on your fork, then in the description of the PR:
-  - Describe clearly what features it contributes and why, or what bugs/issues it fixes
-  - Mention any related discussions or issues
-6. Wait for your PR to be reviewed
-  - If there are conflicts with the `electron` branch, please resolve them
-  - If any changes are requested make them in the same branch of your fork and push the changes to make an update.
-  - If your PR is approved, it will be merged if there are no other conflicts
+3. Make your changes (run `mise check` before committing)
+4. Write commit messages that make the intent clear to a reviewer
+5. Push the commit to your fork
+6. Open a pull request against `electron` with:
+   - A description of what it contributes and why, or what bugs it fixes
+   - Links to related discussions or issues
+7. Wait for review
+   - Resolve any conflicts with `electron`
+   - Push requested changes to the same branch
+   - Once approved and clean, it will be merged
 
 <!-- omit in toc -->
 ## Attribution

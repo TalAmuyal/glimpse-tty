@@ -5,13 +5,17 @@ BASE_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE:-$0}")" &>/dev/null && pwd)
 
 BUN_INSTALL_DIR=$BASE_DIR/.bun
 BUN_BIN_DIR=$BUN_INSTALL_DIR/bin
-BUN_EXE=$BUN_BIN_DIR/bun
 
-if [ ! -d "$BUN_INSTALL_DIR" ]; then
+if command -v bun >/dev/null 2>&1; then
+  BUN_EXE=$(command -v bun)
+  printf 'Using bun from PATH: %s\n' "$BUN_EXE"
+else
+  BUN_EXE=$BUN_BIN_DIR/bun
+  printf 'Installing bun to %s\n' "$BUN_INSTALL_DIR"
+
   command -v unzip >/dev/null ||
     error 'unzip is required to install bun'
 
-  echo "Installing bun"
   platform=$(uname -ms)
   case $platform in
   'Darwin x86_64')

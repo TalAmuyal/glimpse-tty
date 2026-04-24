@@ -15,10 +15,17 @@ resolve_link() {
 }
 
 BASE_DIR=$(cd -- "$(dirname -- "$(resolve_link "${BASH_SOURCE:-$0}")")" &>/dev/null && pwd)
-if [ ! -d "$BASE_DIR/node_modules" ]; then
+
+# Prefer a Bun on PATH (e.g. pinned by mise); fall back to the bootstrapped sandbox.
+if command -v bun >/dev/null 2>&1; then
+    BUN="$(command -v bun)"
+else
+    BUN="$BASE_DIR/.bun/bin/bun"
+fi
+
+if [ ! -d "$BASE_DIR/node_modules" ] || [ ! -x "$BUN" ]; then
     "$BASE_DIR/setup.sh"
 fi
 
-BUN="$BASE_DIR/.bun/bin/bun"
 echo "shim" "$@" > "$BASE_DIR/awrit_error.txt"
 exec -a awrit "$BUN" run "$BASE_DIR/src/runner" "$@" 2>"$BASE_DIR/awrit_error.txt"

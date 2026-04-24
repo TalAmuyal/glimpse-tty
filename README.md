@@ -84,4 +84,6 @@ git checkout upstream/electron
 git switch -c 'my-feature-branch'
 ```
 
+Contributors are encouraged to install [mise](https://mise.jdx.dev) — it pins the Bun, Node, and Rust versions this repo expects and exposes tasks like `mise start`, `mise test`, and `mise check`. See [Your First Code Contribution](/CONTRIBUTING.md#your-first-code-contribution) for the full workflow. If you prefer not to use mise, `./awrit` still bootstraps itself.
+
 Read [Your First Code Contribution](/CONTRIBUTING.md#your-first-code-contribution) for more information on making a PR.

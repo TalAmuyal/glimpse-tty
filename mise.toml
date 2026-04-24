@@ -1,0 +1,104 @@
+[tools]
+bun = "1.3.13"
+node = "22.11.0"
+rust = "1.85.0"
+
+[tasks.setup]
+description = "Install Bun (when absent), npm deps, and patch Electron on macOS."
+run = "./setup.sh"
+sources = ["setup.sh", "package.json", "bun.lock", "src/runner/package.json"]
+outputs = ["node_modules/electron/package.json"]
+
+[tasks.start]
+description = "Launch awrit from this checkout. Forwards all arguments to ./awrit."
+run = "./awrit"
+depends = ["setup"]
+
+[tasks.test]
+description = "Run Bun unit tests."
+run = "bun test"
+depends = ["setup"]
+
+[tasks."test:input"]
+description = "Interactive TTY input test."
+run = "bun run ./src/tty/inputTest.ts"
+depends = ["setup"]
+
+[tasks."test:gfx"]
+description = "Interactive Kitty graphics protocol test."
+run = "bun run ./src/tty/graphicsTest.ts"
+depends = ["setup"]
+
+[tasks.typecheck]
+description = "TypeScript type check (no emit)."
+run = "bun run typecheck"
+depends = ["setup"]
+
+[tasks.lint]
+description = "Biome lint on ./src."
+run = "bun run lint"
+depends = ["setup"]
+
+[tasks."lint:fix"]
+description = "Biome lint with safe autofixes."
+run = "bun run lint-fix"
+depends = ["setup"]
+
+[tasks."lint:fix:unsafe"]
+description = "Biome lint with unsafe autofixes. Review the diff."
+run = "bun run lint-fix-unsafe"
+depends = ["setup"]
+
+[tasks."lint:rust"]
+description = "cargo clippy on the native addon and bgra-to-rgba (not vendored crossterm)."
+run = "cargo clippy -p awrit-native-rs -p bgra-to-rgba --all-targets --all-features -- -D warnings"
+dir = "{{config_root}}/awrit-native-rs"
+
+[tasks.format]
+description = "Biome format across the repo."
+run = "bun run format"
+depends = ["setup"]
+
+[tasks."format:rust"]
+description = "cargo fmt on the native addon and bgra-to-rgba (not vendored crossterm)."
+run = "cargo fmt -p awrit-native-rs -p bgra-to-rgba"
+dir = "{{config_root}}/awrit-native-rs"
+
+[tasks.check]
+description = "Aggregate: typecheck + lint + lint:rust. Static pre-commit sanity."
+depends = ["typecheck", "lint", "lint:rust"]
+
+[tasks."build:native"]
+description = "Build the napi-rs native addon for the host platform (release)."
+run = "bun run make"
+dir = "{{config_root}}/awrit-native-rs"
+depends = ["setup"]
+
+[tasks."build:native:debug"]
+description = "Build the napi-rs native addon for the host platform (debug)."
+run = "bun run make:debug"
+dir = "{{config_root}}/awrit-native-rs"
+depends = ["setup"]
+
+[tasks.clean]
+description = "Remove dependency and build artifacts (keeps the ./.bun sandbox so ./awrit still works)."
+run = [
+  "rm -rf node_modules",
+  "rm -rf awrit-native-rs/target",
+  "rm -f awrit-native-rs/*.node",
+  "rm -f awrit_error.txt",
+]
+
+[tasks."clean:all"]
+description = "Full clean including the ./.bun sandbox. Next ./awrit or mise setup will re-download."
+run = [
+  "rm -rf node_modules",
+  "rm -rf .bun",
+  "rm -rf awrit-native-rs/target",
+  "rm -f awrit-native-rs/*.node",
+  "rm -f awrit_error.txt",
+]
+
+[tasks."bump:crossterm"]
+description = "Pull the latest crossterm master into the vendored subtree."
+run = "bun run bump-crossterm"
