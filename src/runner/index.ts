@@ -1,6 +1,7 @@
 import { possibleOptions, options } from '../args';
 import { $, type Subprocess } from 'bun';
 import electronPath from 'electron';
+import { copyFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { colorsToTailwind, queryColors } from './kittyColors';
 import { server } from './devServer';
@@ -61,6 +62,41 @@ await $`mkdir -p ${root}/dist`.nothrow().quiet();
     console.error('Failed to build');
     process.exit(1);
   }
+}
+
+// Bundle the markdown extension into dist/extensions/markdown/.
+// content.ts is a classic-script content_scripts entry (IIFE).
+// mermaid-loader.ts is dynamically imported from content.ts via
+// chrome.runtime.getURL + import(), so it must be ESM.
+{
+  const srcDir = join(root, 'default-extensions/markdown');
+  const outDir = join(root, 'dist/extensions/markdown');
+  await $`mkdir -p ${outDir}`.quiet();
+
+  const entrypoints: Array<{ file: string; format: 'iife' | 'esm' }> = [
+    { file: 'content.ts', format: 'iife' },
+    { file: 'mermaid-loader.ts', format: 'esm' },
+  ];
+
+  for (const { file, format } of entrypoints) {
+    // Minify both bundles: content.js loads on every .md page (parse time),
+    // mermaid-loader.js is ~3MB even minified (every byte counts when it does load).
+    // Skip sourcemaps — they bloat the bundles ~6x and aren't worth the cost
+    // for production payload. Rebuild without --minify to debug.
+    const { success } = await Bun.build({
+      entrypoints: [join(srcDir, file)],
+      outdir: outDir,
+      target: 'browser',
+      format,
+      minify: true,
+    });
+    if (!success) {
+      console.error(`Failed to build markdown extension: ${file}`);
+      process.exit(1);
+    }
+  }
+
+  copyFileSync(join(srcDir, 'manifest.json'), join(outDir, 'manifest.json'));
 }
 
 const version = require(join(root, 'package.json')).version;

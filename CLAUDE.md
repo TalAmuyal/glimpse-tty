@@ -48,7 +48,32 @@ The Bun lockfile is `bun.lock` (text JSON, Bun 1.1.30+ format), NOT `bun.lockb`.
 
 ## config.js
 
-`config.js` at the repo root is a runtime user-config file, not a build artifact. `src/runner/index.ts` marks it external in the bundler. Do not let it get swept up by clean tasks or gitignored.
+`config.js` at the repo root is a runtime user-config file, not a build artifact. `src/runner/index.ts` marks it external in the bundler. Do not let it get swept up by clean tasks or gitignored. The `userExtensions` array is read once during `app.whenReady()`; edits during runtime are not hot-reloaded.
+
+## Bundle path resolution
+
+`src/runner/index.ts` runs `Bun.build` with `root: src/` and `outdir: dist/`, producing `dist/index.js` from `src/index.ts`. Bun inlines `__dirname` per source module as the **original source location** (e.g. `<repo>/src/`), not the bundle output directory. Code that runs from `dist/index.js` but originates in `src/` will see `__dirname === '<repo>/src/'` at runtime.
+
+To reach files under `dist/` from bundled code, write paths as `'../dist/<file>'` from `__dirname`. Examples:
+
+- `src/windows.ts` references the preload as `'../dist/preload.js'`.
+- `src/extensions.ts` resolves bundled extensions via `path.resolve(__dirname, '../dist/extensions', name)`.
+
+To reach files under `node_modules/` (which sits at the repo root), `'../node_modules/...'` from `__dirname` works because `<repo>/src/../node_modules` and `<repo>/dist/../node_modules` both resolve to `<repo>/node_modules`.
+
+## Default (bundled) extensions
+
+`default-extensions/<name>/` holds source for extensions awrit ships by default (currently just `markdown`). The runner builds them into `dist/extensions/<name>/` with `Bun.build({ target: 'browser', minify: true })` and copies the manifest alongside. The build is hardcoded to the `markdown` extension — generalize when adding a second one.
+
+Content scripts must use `format: 'iife'` because manifest V3 content_scripts are classic JS, not modules. Lazy-loaded modules use `format: 'esm'` because they're consumed via dynamic `import()`. The markdown extension demonstrates both: `content.ts` → IIFE (the always-loaded path), `mermaid-loader.ts` → ESM (only loaded when a `.md` page contains mermaid code blocks).
+
+The lazy-load pattern: `manifest.json` lists the ESM module under `web_accessible_resources` for the relevant origins, and the content script does `import(chrome.runtime.getURL('mermaid-loader.js'))`. Mermaid alone is ~3MB minified — bundling it directly into `content.js` would inflate every `.md` page load. Use the same pattern for any future heavy optional dependency.
+
+`src/extensions.ts` loads each extension at startup via `session.extensions.loadExtension(path, loadExtensionOptions)`. `loadExtensionOptions` is per-entry — for example, the markdown extension passes `allowFileAccess: true` so it can run on `file://` URLs. Without that flag, content scripts won't fire on local files even if the manifest's `matches` includes `file:///*`.
+
+Match patterns in `manifest.json` are scoped to `.md` and `.markdown` paths (`file:///*.md`, `*://*/*.md`, etc.) so the bundle doesn't load on every page navigation. Any expansion of supported file types needs the matches array updated.
+
+`markdown-test.md` at the repo root is a fixture that exercises every renderer feature (front matter, headings + anchors, all language code blocks, tables, lists, mermaid, sanitization). Run `./awrit "file://$(pwd)/markdown-test.md"` after touching the markdown extension.
 
 ## Git workflow
 

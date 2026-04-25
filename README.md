@@ -18,7 +18,7 @@ Yep, actual Chromium being rendered in your favorite terminal that supports the 
 ## Install
 
 ``` bash
-curl -fsS https://chase.github.io/awrit/get | bash
+curl -fsS https://talamuyal.github.io/awrit/get | bash
 ```
 
 By default, this will download to `~/awrit` and link to `~/.local/bin/awrit`.
@@ -28,11 +28,11 @@ You can configure `awrit` by changing `~/awrit/config.js`. See [Configuration](#
 #### (Optional) Change Download Location or Install Prefix
 
 ``` bash
-curl -fsS https://chase.github.io/awrit/get | DOWNLOAD_TO=~/somewhere-completely-different bash
+curl -fsS https://talamuyal.github.io/awrit/get | DOWNLOAD_TO=~/somewhere-completely-different bash
 ```
 
 ``` bash
-curl -fsS https://chase.github.io/awrit/get | INSTALL_TO=~/.not-local bash
+curl -fsS https://talamuyal.github.io/awrit/get | INSTALL_TO=~/.not-local bash
 ```
 
 ## Usage
@@ -55,34 +55,15 @@ awrit --help
 
 `awrit` can be configured through `config.js` in the project root. Changes to it will update the config in any running `awrit`.
 
-Currently it only supports custom keybindings and changing the homepage that displays when no URL is provided.
+Currently it supports custom keybindings, the homepage that displays when no URL is provided, and loading local unpacked Chrome extensions via `userExtensions`.
 
-For more details on keybinding syntax and available actions, see the comments in `config.js`.
+For more details on keybinding syntax, available actions, and the `userExtensions` array, see the comments in `config.js`.
 
 ## Contributing
 
 See [Contributing to Awrit](/CONTRIBUTING.md#contributing-to-awrit).
 
 ## Development
-
-Assuming you already have `git` installed, your installation of `awrit` will already be a Git repository.
-
-You can update `awrit` to use your fork by changing the origin:
-
-``` bash
-# note: you'll have to change the username some-kind-contributor to your GitHub username
-git remote set-url origin git@github.com:some-kind-contributor/awrit.git
-# also track the upstream electron branch
-git remote add upstream -f -t electron git@github.com:chase/awrit.git
-```
-
-You can make a branch (ex: my-feature-branch) off the latest changes by doing:
-
-```
-git fetch upstream electron
-git checkout upstream/electron
-git switch -c 'my-feature-branch'
-```
 
 Contributors are encouraged to install [mise](https://mise.jdx.dev) — it pins the Bun, Node, and Rust versions this repo expects and exposes tasks like `mise start`, `mise test`, and `mise check`. See [Your First Code Contribution](/CONTRIBUTING.md#your-first-code-contribution) for the full workflow. If you prefer not to use mise, `./awrit` still bootstraps itself.
 

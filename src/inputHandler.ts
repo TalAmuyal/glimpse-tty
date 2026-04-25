@@ -3,6 +3,17 @@ import { handleEvent as handleKeyBinding } from './keybindings';
 import { focusedView } from './windows';
 
 const WHEEL_DELTA = 100;
+// Each terminal scroll arrives as one discrete event. Sending it as a single
+// `deltaY: 100, hasPreciseScrollingDeltas: false` wheel makes Chromium treat
+// it like a wheel click — even with `--enable-smooth-scrolling`, the captured
+// animation often looks stepped through awrit's offscreen→Kitty path.
+//
+// Instead we fan it out into a sequence of small `hasPreciseScrollingDeltas:
+// true` events spread over SCROLL_DURATION_MS, mimicking trackpad input.
+// Chromium handles those with continuous high-resolution scrolling, which
+// produces a steadier stream of paint events for awrit to forward.
+const SCROLL_STEPS = 10;
+const SCROLL_DURATION_MS = 120;
 
 const mouseEventTypes = ['mouseDown', 'mouseUp', 'mouseMove'] as const;
 // this is a fix for Electron going back and forth on what's supported for modifiers, despite being case insensitive;
@@ -69,31 +80,41 @@ export function handleInput(evt: TermEvent) {
       const rawY = y ?? 0;
 
       // Determine which region we're in based on layout
-      const { toolbarNode, contentNode } = view;
-      const isInToolbar = rawY < contentNode.deviceLayout.y;
+      const { toolbar, toolbarNode, contentNode } = view;
+      const isInToolbar = !!toolbar && rawY < contentNode.deviceLayout.y;
 
       // Calculate position relative to the target component
       const adjustedX = Math.floor(rawX / DPI_SCALE);
       const adjustedY = Math.floor(
-        (rawY - (isInToolbar ? 0 : toolbarNode.deviceLayout.height)) / DPI_SCALE,
+        (rawY - (isInToolbar ? 0 : (toolbarNode?.deviceLayout.height ?? 0))) / DPI_SCALE,
       );
 
-      const focusedContent = isInToolbar ? view.toolbar.webContents : view.content.webContents;
+      const focusedContent =
+        isInToolbar && toolbar ? toolbar.webContents : view.content.webContents;
 
       if (kind === 'scrollUp' || kind === 'scrollDown') {
-        view.content.webContents.sendInputEvent({
-          type: 'mouseWheel',
-          wheelTicksY: kind === 'scrollUp' ? 1 : -1,
-          wheelTicksX: 0,
-          deltaX: 0,
-          deltaY: kind === 'scrollUp' ? WHEEL_DELTA : -WHEEL_DELTA,
-          modifiers,
-          x: adjustedX,
-          y: adjustedY,
-          accelerationRatioY: 0.5,
-          hasPreciseScrollingDeltas: false,
-          canScroll: true,
-        });
+        const direction = kind === 'scrollUp' ? 1 : -1;
+        const stepDelta = (direction * WHEEL_DELTA) / SCROLL_STEPS;
+        const stepInterval = SCROLL_DURATION_MS / SCROLL_STEPS;
+        const target = view.content.webContents;
+        for (let i = 0; i < SCROLL_STEPS; i++) {
+          setTimeout(() => {
+            if (target.isDestroyed()) return;
+            target.sendInputEvent({
+              type: 'mouseWheel',
+              wheelTicksX: 0,
+              wheelTicksY: 0,
+              deltaX: 0,
+              deltaY: stepDelta,
+              modifiers,
+              x: adjustedX,
+              y: adjustedY,
+              accelerationRatioY: 0.5,
+              hasPreciseScrollingDeltas: true,
+              canScroll: true,
+            });
+          }, i * stepInterval);
+        }
         break;
       }
 
@@ -119,9 +140,9 @@ export function handleInput(evt: TermEvent) {
       if (kind === 'mouseDown' && button === 'left') {
         if (focusedContent !== view.focusedContent) {
           if (focusedContent === view.content.webContents) {
-            view.toolbar.blurWebView();
+            view.toolbar?.blurWebView();
             view.content.focusOnWebView();
-          } else {
+          } else if (view.toolbar) {
             view.content.blurWebView();
             view.toolbar.focusOnWebView();
           }

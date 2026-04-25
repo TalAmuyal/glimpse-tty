@@ -6,7 +6,7 @@ set -euo pipefail
 DOWNLOAD_TO=${DOWNLOAD_TO-"$HOME/awrit"}
 INSTALL_TO=${INSTALL_TO-"$HOME/.local"}
 
-REPO='https://github.com/chase/awrit'
+REPO='https://github.com/TalAmuyal/awrit'
 BRANCH='electron'
 ZIP="${BRANCH}.zip"
 ZIP_URI="$REPO/archive/refs/heads/$ZIP"

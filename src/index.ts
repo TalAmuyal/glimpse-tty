@@ -9,6 +9,7 @@ import {
 import * as out from './tty/output';
 import { handleInput } from './inputHandler';
 import { createWindowWithToolbar } from './windows';
+import { loadUserExtensions } from './extensions';
 import { console_ } from './console';
 import { options } from './args';
 import { features } from './features';
@@ -17,10 +18,12 @@ import { loadKeyBindings } from './keybindings';
 import fs from 'node:fs';
 import path from 'node:path';
 
-let homepage = 'https://github.com/chase/awrit';
+let homepage = 'https://github.com/TalAmuyal/awrit';
+let userExtensions: string[] = [];
 
 function loadConfig(config: typeof import('../config.js')) {
   if (config.homepage) homepage = config.homepage;
+  if (config.userExtensions) userExtensions = config.userExtensions;
   if (config.keybindings) {
     if (process.platform === 'darwin') {
       Object.assign(config.keybindings, config.keybindings.mac);
@@ -130,7 +133,21 @@ app.commandLine.appendSwitch('silent-debugger-extension-api');
 // Prevent sysctlbyname crash: https://github.com/electron/electron/issues/45653#issuecomment-2663510200
 app.commandLine.appendSwitch('disable-features', 'UseBrowserCalculatedOrigin');
 
+// Animate mouse-wheel and keyboard scrolls instead of stepping discretely.
+// `scroll-behavior: smooth` only affects programmatic scrolls; this switch
+// covers the input-driven path at the compositor level.
+app.commandLine.appendSwitch('enable-smooth-scrolling');
+
+// Offscreen rendering performance: enable GPU rasterization and lift the
+// GPU blocklist so Chromium's compositor can hardware-accelerate. Without
+// these, scroll animations capture at well below 60 fps and look stepped
+// even though `enable-smooth-scrolling` is animating internally.
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+
 app.whenReady().then(async () => {
+  await loadUserExtensions(userExtensions, CONFIG_PATH_RESOLVED);
   const window = await createWindowWithToolbar(getWindowSize(), INITIAL_URL);
 
   ipcMain.handle('findInPage', (_, text: string, opts) => {
@@ -139,7 +156,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('stopFindInPage', () => {
     window.content.webContents.stopFindInPage('clearSelection');
-    window.toolbar.blurWebView();
+    window.toolbar?.blurWebView();
     window.content.focusOnWebView();
     window.focusedContent = window.content.webContents;
   });
