@@ -3,6 +3,17 @@
  **/
 const homepage = 'https://github.com/chase/awrit';
 
+/** Extensions
+ * Paths to unpacked Chrome extensions. `~/` is expanded; relative paths resolve against this file's directory.
+ * Loaded once at startup; not hot-reloaded.
+ *
+ * @type {string[]}
+ */
+const userExtensions = [
+  // '~/code/my-extension',
+  // '/absolute/path/to/another-extension',
+];
+
 /** Keybindings
  *
  * @typedef {import('./src/keybindings').KeyBindingAction} KeyBindingAction
@@ -87,6 +98,7 @@ function refresh({ view }) {
 }
 
 function find({ view }) {
+  if (!view.toolbar) return;
   view.toolbar.webContents.send('toolbar:toggle-find');
   view.content.blurWebView();
   view.toolbar.focusOnWebView();
@@ -95,6 +107,7 @@ function find({ view }) {
 
 const config = {
   homepage,
+  userExtensions,
   keybindings,
 };
 

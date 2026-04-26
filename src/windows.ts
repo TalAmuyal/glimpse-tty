@@ -8,7 +8,7 @@ import {
 import path from 'node:path';
 import { registerPaintedContent, registerPaintedContentFallback } from './paint';
 import { sessionPromise } from './session';
-import { extensionsPromise, installedExtensionsPromise } from './extensions';
+import { bundledExtensionsPromise, extensionsPromise, installedExtensionsPromise } from './extensions';
 import { paintInitialFrame } from './tty/kittyGraphics';
 import { getWindowSize, ShmGraphicBuffer } from 'awrit-native-rs';
 import { options } from './args';
@@ -35,11 +35,11 @@ export type Actions = {
 };
 
 export type WindowView = {
-  toolbar: BrowserWindow;
+  toolbar?: BrowserWindow;
   content: BrowserWindow;
   focusedContent: WebContents;
   layoutContainer: LayoutContainer;
-  toolbarNode: LayoutNode;
+  toolbarNode?: LayoutNode;
   contentNode: LayoutNode;
 } & Actions;
 
@@ -86,7 +86,7 @@ export const managedViews: WindowView[] = [];
  */
 export async function createWindowWithToolbar(
   size: { width: number; height: number },
-  initialUrl = 'https://github.com/chase/awrit',
+  initialUrl = 'https://github.com/TalAmuyal/awrit',
 ): Promise<WindowView> {
   console_.error('size', size);
   // Create layout container with device pixel dimensions
@@ -96,14 +96,18 @@ export async function createWindowWithToolbar(
     getDisplayScale() ?? screen.getPrimaryDisplay().scaleFactor,
   );
 
+  const showToolbar = !options['no-toolbar'];
+
   // Create layout nodes for toolbar and content
-  const toolbarNode = row({ height: px(TOOLBAR_HEIGHT), tag: 'toolbar' });
+  const toolbarNode = showToolbar
+    ? row({ height: px(TOOLBAR_HEIGHT), tag: 'toolbar' })
+    : undefined;
   const contentNode = row({ height: auto(), tag: 'content' });
 
   const hasAnimation = features.current?.loadFrame && features.current.compositeFrame;
 
   // Calculate layout
-  calculateLayout(layoutContainer, [toolbarNode, contentNode]);
+  calculateLayout(layoutContainer, toolbarNode ? [toolbarNode, contentNode] : [contentNode]);
 
   const transparentWindowSettings = {
     transparent: true,
@@ -122,19 +126,21 @@ export async function createWindowWithToolbar(
     resizable: false,
   };
 
-  const toolbar = new BrowserWindow({
-    ...sharedConstructorOptions,
-    ...toolbarNode.computedLayout,
+  const toolbar = toolbarNode
+    ? new BrowserWindow({
+        ...sharedConstructorOptions,
+        ...toolbarNode.computedLayout,
 
-    webPreferences: {
-      zoomFactor: 1,
-      offscreen: true,
-      nodeIntegration: false,
-      contextIsolation: true,
+        webPreferences: {
+          zoomFactor: 1,
+          offscreen: true,
+          nodeIntegration: false,
+          contextIsolation: true,
 
-      preload: path.resolve(__dirname, '../dist/preload.js'),
-    },
-  });
+          preload: path.resolve(__dirname, '../dist/preload.js'),
+        },
+      })
+    : undefined;
 
   const content = new BrowserWindow({
     ...sharedConstructorOptions,
@@ -153,6 +159,10 @@ export async function createWindowWithToolbar(
       disableDialogs: true,
     },
   });
+  // Pin offscreen capture to 60 fps. Default is also 60, but being explicit
+  // ensures scroll-animation frames are captured at full rate.
+  content.webContents.setFrameRate(60);
+  toolbar?.webContents.setFrameRate(60);
 
   const destructors: Array<() => void> = [];
 
@@ -163,14 +173,16 @@ export async function createWindowWithToolbar(
       const containerFrame = paintInitialFrame(containerBuffer, size);
       destructors.push(
         containerFrame.free,
-        registerPaintedContent(containerFrame, toolbar, toolbarNode).destroy,
         registerPaintedContent(containerFrame, content, contentNode).destroy,
       );
+      if (toolbar && toolbarNode) {
+        destructors.push(registerPaintedContent(containerFrame, toolbar, toolbarNode).destroy);
+      }
     } else {
-      destructors.push(
-        registerPaintedContentFallback(toolbar, toolbarNode).destroy,
-        registerPaintedContentFallback(content, contentNode).destroy,
-      );
+      destructors.push(registerPaintedContentFallback(content, contentNode).destroy);
+      if (toolbar && toolbarNode) {
+        destructors.push(registerPaintedContentFallback(toolbar, toolbarNode).destroy);
+      }
     }
   }
 
@@ -180,32 +192,34 @@ export async function createWindowWithToolbar(
   extensionsPromise.then((extensions) => {
     extensions.addTab(content.webContents, content);
   });
-  await installedExtensionsPromise;
+  await Promise.all([installedExtensionsPromise, bundledExtensionsPromise]);
 
-  if (options.dev) {
-    toolbar.webContents.once('did-finish-load', () => {
-      console_.error('toolbar loaded');
-    });
-    toolbar.webContents.once('did-fail-load', (_event, errorCode, errorDescription) => {
-      console_.error('toolbar failed to load', {
-        errorCode,
-        errorDescription,
+  if (toolbar) {
+    if (options.dev) {
+      toolbar.webContents.once('did-finish-load', () => {
+        console_.error('toolbar loaded');
       });
-    });
-    toolbar.webContents.loadURL(`http://localhost:${TOOLBAR_PORT}`);
-    toolbar.webContents.openDevTools({
-      mode: 'detach',
-      title: 'Toolbar Dev Tools',
-      activate: false,
-    });
-  } else {
-    resetForFrameQuirk(toolbar.webContents);
-    toolbar.webContents.loadFile('../dist/toolbar/index.html');
+      toolbar.webContents.once('did-fail-load', (_event, errorCode, errorDescription) => {
+        console_.error('toolbar failed to load', {
+          errorCode,
+          errorDescription,
+        });
+      });
+      toolbar.webContents.loadURL(`http://localhost:${TOOLBAR_PORT}`);
+      toolbar.webContents.openDevTools({
+        mode: 'detach',
+        title: 'Toolbar Dev Tools',
+        activate: false,
+      });
+    } else {
+      resetForFrameQuirk(toolbar.webContents);
+      toolbar.webContents.loadFile('../dist/toolbar/index.html');
+    }
+    toolbar.webContents.on('cursor-changed', updateCursor);
   }
   resetForFrameQuirk(content.webContents);
   content.webContents.loadURL(initialUrl);
 
-  toolbar.webContents.on('cursor-changed', updateCursor);
   content.webContents.on('cursor-changed', updateCursor);
 
   const view: WindowView = {
@@ -231,7 +245,9 @@ export async function createWindowWithToolbar(
   focusedView.current = view;
 
   // Set up IPC for toolbar interactions
-  setupToolbarIPC(toolbar.webContents, content.webContents);
+  if (toolbar) {
+    setupToolbarIPC(toolbar.webContents, content.webContents);
+  }
 
   process.on(
     'SIGWINCH',
@@ -259,10 +275,12 @@ function updateViewSizes(view: WindowView, { width, height }: Size) {
     getDisplayScale() ?? screen.getPrimaryDisplay().scaleFactor,
   );
 
-  calculateLayout(view.layoutContainer, [toolbarNode, contentNode]);
+  calculateLayout(view.layoutContainer, toolbarNode ? [toolbarNode, contentNode] : [contentNode]);
 
   // Update window sizes based on layout
-  toolbar.setContentSize(toolbarNode.computedLayout.width, toolbarNode.computedLayout.height);
+  if (toolbar && toolbarNode) {
+    toolbar.setContentSize(toolbarNode.computedLayout.width, toolbarNode.computedLayout.height);
+  }
   content.setContentSize(contentNode.computedLayout.width, contentNode.computedLayout.height);
 }
 

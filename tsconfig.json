@@ -28,6 +28,8 @@
     "node_modules",
     "dist",
     "awrit-native-rs",
+    "default-extensions",
+    "default-extensions/**/*",
     "src/runner",
     "src/runner/**/*",
     "src/toolbar",

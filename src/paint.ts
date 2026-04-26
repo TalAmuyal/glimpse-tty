@@ -33,6 +33,8 @@ export function registerPaintedContent(
 ): PaintedContent {
   const contents = w.webContents;
   const frameNumber = 2 + containerFrame.paintedContent++;
+  const tag = layoutNode.tag ?? '?';
+  let lastPaintTime = 0;
 
   w.on('resize', () => {
     // result.frame?.delete();
@@ -55,14 +57,14 @@ export function registerPaintedContent(
   };
 
   async function paint(_: any, _dirty: Rectangle, image: NativeImage) {
-    const imageSize = image.getSize();
+    const t0 = performance.now();
+    const dt = lastPaintTime ? t0 - lastPaintTime : 0;
+    lastPaintTime = t0;
 
+    const imageSize = image.getSize();
     const imageBufferSize = imageSize.width * imageSize.height * 4;
     if (result.buffer == null) {
       result.buffer = new ShmGraphicBuffer(imageBufferSize);
-    }
-    if (options['debug-paint']) {
-      console_.error('paint', result.buffer.nameBase64, image.getSize());
     }
     if (options['no-paint']) {
       return;
@@ -76,11 +78,22 @@ export function registerPaintedContent(
       result.size = imageBufferSize;
     }
 
+    const tb0 = performance.now();
     const buffer = image.toBitmap();
     result.buffer.write(buffer, imageSize.width);
+    const tb1 = performance.now();
+
+    const sw0 = performance.now();
     containerFrame
       .loadFrame(frameNumber, result.buffer, imageSize)
       .composite(layoutNode.deviceLayout);
+    const sw1 = performance.now();
+
+    if (options['debug-paint']) {
+      console_.error(
+        `paint:${tag} dt=${dt.toFixed(1)} tb=${(tb1 - tb0).toFixed(1)} sw=${(sw1 - sw0).toFixed(1)} sz=${imageSize.width}x${imageSize.height}`,
+      );
+    }
   }
 
   contents.on('paint', paint);
@@ -104,6 +117,8 @@ export function registerPaintedContentFallback(
   const termSize = getWindowSize();
   const cellToPxX = termSize.width / termSize.cols;
   const cellToPxY = termSize.height / termSize.rows;
+  const tag = layoutNode.tag ?? '?';
+  let lastPaintTime = 0;
   let paintedImage: PaintedImage | undefined;
 
   const result: PaintedContent = {
@@ -116,6 +131,10 @@ export function registerPaintedContentFallback(
   };
 
   async function paint(_: any, _dirty: Rectangle, image: NativeImage) {
+    const t0 = performance.now();
+    const dt = lastPaintTime ? t0 - lastPaintTime : 0;
+    lastPaintTime = t0;
+
     const imageSize = image.getSize();
     const imageBufferSize = imageSize.width * imageSize.height * 4;
 
@@ -124,26 +143,42 @@ export function registerPaintedContentFallback(
       y: coordsFromPx(cellToPxY, layoutNode.deviceLayout.y),
     };
 
+    if (options['no-paint']) {
+      return;
+    }
+
+    let tbMs = 0;
+    let swMs = 0;
+
     let replace = true;
     if (result.buffer == null || (result.size != null && imageBufferSize > result.size)) {
       replace = false;
       const buffer = new ShmGraphicBuffer(imageBufferSize);
       paintedImage?.free();
+      const tb0 = performance.now();
       buffer.write(image.toBitmap(), imageSize.width);
+      tbMs = performance.now() - tb0;
+      const sw0 = performance.now();
       paintedImage = paintImage(buffer, imageSize, position);
+      swMs = performance.now() - sw0;
 
       result.buffer = buffer;
       result.size = imageBufferSize;
     }
-    if (options['debug-paint']) {
-      console_.error('paint', result.buffer.nameBase64, image.getSize());
-    }
-    if (options['no-paint']) {
-      return;
-    }
 
     if (replace && paintedImage) {
-      paintedImage.replace(image.toBitmap());
+      const tb0 = performance.now();
+      const bitmap = image.toBitmap();
+      tbMs = performance.now() - tb0;
+      const sw0 = performance.now();
+      paintedImage.replace(bitmap);
+      swMs = performance.now() - sw0;
+    }
+
+    if (options['debug-paint']) {
+      console_.error(
+        `paint:${tag}(fallback) dt=${dt.toFixed(1)} tb=${tbMs.toFixed(1)} sw=${swMs.toFixed(1)} sz=${imageSize.width}x${imageSize.height}`,
+      );
     }
   }
   contents.on('paint', paint);

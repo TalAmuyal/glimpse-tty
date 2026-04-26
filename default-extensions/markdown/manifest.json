@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "awrit Markdown Renderer",
+  "version": "1.0.0",
+  "description": "Renders .md and .markdown URLs as HTML in awrit.",
+  "content_scripts": [
+    {
+      "matches": [
+        "file:///*.md",
+        "file:///*.markdown",
+        "*://*/*.md",
+        "*://*/*.markdown"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["mermaid-loader.js"],
+      "matches": [
+        "file:///*",
+        "*://*/*"
+      ]
+    }
+  ]
+}
