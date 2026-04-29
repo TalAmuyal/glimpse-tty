@@ -2,6 +2,11 @@ export const rawArgs = process.argv.slice(2);
 
 export const possibleOptions = {
   url: { short: 'u', description: 'Set the initial URL', string: true, arg: true },
+  'device-scale-factor': {
+    short: 's',
+    description: 'BrowserWindow content-size multiplier; overrides config.deviceScaleFactor',
+    string: true,
+  },
 
   help: { short: 'h', description: 'Show help' },
   version: { short: 'v', description: 'Show version' },

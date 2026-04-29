@@ -5,12 +5,18 @@
  *
  * Kitty's graphics protocol unlinks the shm after reading. If we reuse the
  * same name across paints, fast scrolling races: paint N+1 opens the still-
- * existing name, overwrites N's data, then N+1's `loadFrame` fails because
+ * existing name, overwrites N's data, then N+1's transmit fails because
  * Kitty unlinked between our open and its read. To avoid the race we rotate
  * to a fresh name on every `write` / `write_iosurface` call.
  *
- * `write_empty` (used by the one-shot container frame) keeps the initial
- * name; the container is only transmitted once.
+ * # Warm buffer optimization
+ *
+ * Instead of converting BGRA->RGBA directly into freshly-mmaped shm pages
+ * (which triggers thousands of zero-fill page faults), we convert into a
+ * persistent warm buffer and then `write()` the result into the shm fd.
+ * The warm buffer's pages stay resident across frames, so the SIMD conversion
+ * writes to hot memory. The kernel `write()` handles shm page allocation
+ * internally without user-space page faults.
  */
 export declare class ShmGraphicBuffer {
   /** Creates a new shared memory buffer with a unique name with the provided size */
@@ -21,16 +27,12 @@ export declare class ShmGraphicBuffer {
    */
   get nameBase64(): string
   /**
-   * Creates and truncates the shared memory segment to the specified size, filling it with zeros.
-   *
-   * Used for the one-shot container frame that Kitty receives once at startup.
-   * Does NOT rotate the name; the caller is expected to transmit this single
-   * shm and never reuse this buffer for animation frames.
-   */
-  writeEmpty(): void
-  /**
    * Writes an image buffer to the shared memory at the specified dirty rectangle.
    * Rotates to a fresh shm name first to avoid races with Kitty's post-read unlink.
+   *
+   * Uses a warm intermediate buffer to avoid page faults: BGRA->RGBA conversion
+   * writes to a persistent anonymous mmap (warm pages), then `write(fd)` copies
+   * the result into the fresh shm fd.
    */
   write(buffer: Buffer, imageWidth: number, dirtyRect?: DirtyRect | undefined | null): void
   /**

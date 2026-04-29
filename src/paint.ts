@@ -1,4 +1,5 @@
 import { getWindowSize, ShmGraphicBuffer } from 'awrit-native-rs';
+import { app } from 'electron';
 import type {
   BrowserWindow,
   Event as ElectronEvent,
@@ -12,14 +13,14 @@ import { console_ } from './console';
 import { features } from './features';
 import type { LayoutNode } from './layout';
 import {
-  type AnimationFrame,
-  type InitialFrame,
+  type DirectFrame,
   type PaintedImage,
+  awaitStdoutDrain,
   paintImage,
+  takeBytesWrittenSinceMark,
 } from './tty/kittyGraphics';
 
 type PaintedContent = {
-  frame?: AnimationFrame;
   buffer?: ShmGraphicBuffer;
   size?: number;
   expectedWinSize?: {
@@ -31,24 +32,104 @@ type PaintedContent = {
 
 type PaintEvent = ElectronEvent<WebContentsPaintEventParams>;
 
+type PaintStats = {
+  dt: number[];
+  tb: number[];
+  rd: number[];
+  rw: number[];
+  sw: number[];
+  bw: number[];
+};
+
+const paintStatsByTag_ = new Map<string, PaintStats>();
+
+function recordPaintStats(
+  tag: string,
+  dt: number,
+  tb: number,
+  rd: number,
+  rw: number,
+  sw: number,
+  bw: number,
+) {
+  let stats = paintStatsByTag_.get(tag);
+  if (!stats) {
+    stats = { dt: [], tb: [], rd: [], rw: [], sw: [], bw: [] };
+    paintStatsByTag_.set(tag, stats);
+  }
+  stats.dt.push(dt);
+  stats.tb.push(tb);
+  stats.rd.push(rd);
+  stats.rw.push(rw);
+  stats.sw.push(sw);
+  stats.bw.push(bw);
+}
+
+function percentile(sortedValues: number[], p: number): number {
+  if (sortedValues.length === 0) return 0;
+  const idx = Math.min(sortedValues.length - 1, Math.floor((p / 100) * sortedValues.length));
+  return sortedValues[idx];
+}
+
+function fmt1(n: number): string {
+  return n.toFixed(1);
+}
+
+let summaryEmitted_ = false;
+
+function emitPaintSummary() {
+  if (summaryEmitted_) return;
+  summaryEmitted_ = true;
+  if (!options['debug-paint']) return;
+
+  for (const [tag, stats] of paintStatsByTag_) {
+    const count = stats.dt.length;
+    if (count === 0) continue;
+
+    const dtSorted = [...stats.dt].sort((a, b) => a - b);
+    const tbSorted = [...stats.tb].sort((a, b) => a - b);
+    const rdSorted = [...stats.rd].sort((a, b) => a - b);
+    const rwSorted = [...stats.rw].sort((a, b) => a - b);
+    const swSorted = [...stats.sw].sort((a, b) => a - b);
+
+    const spikes = stats.dt.filter((v) => v > 40).length;
+    const spikePct = (spikes / count) * 100;
+    const bwTotalMb = stats.bw.reduce((acc, v) => acc + v, 0) / (1024 * 1024);
+
+    console_.error(
+      `paint:summary tag=${tag} count=${count} ` +
+        `dt_p50=${fmt1(percentile(dtSorted, 50))} dt_p95=${fmt1(percentile(dtSorted, 95))} ` +
+        `dt_p99=${fmt1(percentile(dtSorted, 99))} dt_max=${fmt1(dtSorted[dtSorted.length - 1])} ` +
+        `dt_spikes_gt40=${spikes} dt_spikes_pct=${fmt1(spikePct)} ` +
+        `tb_p50=${fmt1(percentile(tbSorted, 50))} tb_p95=${fmt1(percentile(tbSorted, 95))} ` +
+        `tb_p99=${fmt1(percentile(tbSorted, 99))} ` +
+        `rd_p50=${fmt1(percentile(rdSorted, 50))} rd_p95=${fmt1(percentile(rdSorted, 95))} ` +
+        `rd_p99=${fmt1(percentile(rdSorted, 99))} ` +
+        `rw_p50=${fmt1(percentile(rwSorted, 50))} rw_p95=${fmt1(percentile(rwSorted, 95))} ` +
+        `rw_p99=${fmt1(percentile(rwSorted, 99))} ` +
+        `sw_p50=${fmt1(percentile(swSorted, 50))} sw_p95=${fmt1(percentile(swSorted, 95))} ` +
+        `sw_p99=${fmt1(percentile(swSorted, 99))} ` +
+        `bw_total=${fmt1(bwTotalMb)}`,
+    );
+  }
+}
+
+if (options['debug-paint']) {
+  app.on('before-quit', emitPaintSummary);
+  process.on('SIGINT', emitPaintSummary);
+  process.on('exit', emitPaintSummary);
+}
+
 const weakPaintedContents_ = new WeakMap<BrowserWindow, PaintedContent>();
 
-// assumes animation is supported
 export function registerPaintedContent(
-  containerFrame: InitialFrame,
+  directFrame: DirectFrame,
   w: BrowserWindow,
   layoutNode: LayoutNode,
 ): PaintedContent {
   const contents = w.webContents;
-  const frameNumber = 2 + containerFrame.paintedContent++;
   const tag = layoutNode.tag ?? '?';
   let lastPaintTime = 0;
-
-  w.on('resize', () => {
-    // result.frame?.delete();
-    // result.frame = containerFrame.loadFrame(2, compositeName, bounds);
-    // console_.error('bounds-changed', id, bounds);
-  });
 
   if (!features.current) {
     console_.error('No features available');
@@ -59,8 +140,6 @@ export function registerPaintedContent(
     destroy() {
       contents.off('paint', paint);
       this.buffer = undefined;
-      this.frame?.delete();
-      this.frame = undefined;
     },
   };
 
@@ -105,6 +184,8 @@ export function registerPaintedContent(
     let pathTaken: 'tex' | 'bmp' | 'fail' = 'bmp';
 
     const tb0 = performance.now();
+    let rdMs = 0;
+    let rwMs = 0;
     let texturePathOk = false;
     if (ioSurface) {
       try {
@@ -120,10 +201,13 @@ export function registerPaintedContent(
     if (!texturePathOk) {
       try {
         const buffer = image.toBitmap();
+        const mid = performance.now();
+        rdMs = mid - tb0;
         if (buffer.length === 0) {
           throw new Error('image.toBitmap() returned empty buffer (length 0)');
         }
         result.buffer.write(buffer, imageSize.width);
+        rwMs = performance.now() - mid;
       } catch (err) {
         pathTaken = 'fail';
         if (options['debug-paint']) {
@@ -133,22 +217,34 @@ export function registerPaintedContent(
     }
     event.texture?.release();
     const tb1 = performance.now();
+    if (texturePathOk) {
+      rwMs = tb1 - tb0;
+    }
 
+    takeBytesWrittenSinceMark();
     const sw0 = performance.now();
     if (pathTaken !== 'fail') {
-      containerFrame
-        .loadFrame(frameNumber, result.buffer, imageSize)
-        .composite(layoutNode.deviceLayout);
+      directFrame.transmitAndPlace(result.buffer, imageSize);
+    }
+    // Capture bytes before yielding for drain so a concurrent paint can't
+    // overwrite the shared counter mid-await.
+    const bytesWritten = takeBytesWrittenSinceMark();
+    const drainPromise = awaitStdoutDrain();
+    if (drainPromise) {
+      await drainPromise;
     }
     const sw1 = performance.now();
 
     if (options['debug-paint']) {
+      const tbMs = tb1 - tb0;
+      const swMs = sw1 - sw0;
+      recordPaintStats(tag, dt, tbMs, rdMs, rwMs, swMs, bytesWritten);
       const niSize = image.getSize();
       const cs = event.texture?.textureInfo.codedSize;
       const fmt = event.texture?.textureInfo.pixelFormat ?? 'n/a';
       const dl = layoutNode.deviceLayout;
       console_.error(
-        `paint:${tag} src=${pathTaken} fmt=${fmt} dt=${dt.toFixed(1)} tb=${(tb1 - tb0).toFixed(1)} sw=${(sw1 - sw0).toFixed(1)} ` +
+        `paint:${tag} src=${pathTaken} fmt=${fmt} dt=${dt.toFixed(1)} tb=${tbMs.toFixed(1)} rd=${rdMs.toFixed(1)} rw=${rwMs.toFixed(1)} sw=${swMs.toFixed(1)} bw=${bytesWritten} ` +
           `sz=${imageSize.width}x${imageSize.height} ni=${niSize.width}x${niSize.height} cs=${cs?.width ?? 0}x${cs?.height ?? 0} ` +
           `dl=${dl.width}x${dl.height}@${dl.x},${dl.y}`,
       );
@@ -207,7 +303,10 @@ export function registerPaintedContentFallback(
     }
 
     let tbMs = 0;
+    let rdMs = 0;
+    let rwMs = 0;
     let swMs = 0;
+    let bytesWritten = 0;
 
     let replace = true;
     if (result.buffer == null || (result.size != null && imageBufferSize > result.size)) {
@@ -215,10 +314,20 @@ export function registerPaintedContentFallback(
       const buffer = new ShmGraphicBuffer(imageBufferSize);
       paintedImage?.free();
       const tb0 = performance.now();
-      buffer.write(image.toBitmap(), imageSize.width);
-      tbMs = performance.now() - tb0;
+      const bitmap = image.toBitmap();
+      const mid = performance.now();
+      rdMs = mid - tb0;
+      buffer.write(bitmap, imageSize.width);
+      rwMs = performance.now() - mid;
+      tbMs = rdMs + rwMs;
+      takeBytesWrittenSinceMark();
       const sw0 = performance.now();
       paintedImage = paintImage(buffer, imageSize, position);
+      bytesWritten = takeBytesWrittenSinceMark();
+      const drainPromise = awaitStdoutDrain();
+      if (drainPromise) {
+        await drainPromise;
+      }
       swMs = performance.now() - sw0;
 
       result.buffer = buffer;
@@ -228,15 +337,25 @@ export function registerPaintedContentFallback(
     if (replace && paintedImage) {
       const tb0 = performance.now();
       const bitmap = image.toBitmap();
-      tbMs = performance.now() - tb0;
-      const sw0 = performance.now();
+      const mid = performance.now();
+      rdMs = mid - tb0;
       paintedImage.replace(bitmap);
+      rwMs = performance.now() - mid;
+      tbMs = rdMs + rwMs;
+      takeBytesWrittenSinceMark();
+      const sw0 = performance.now();
+      bytesWritten = takeBytesWrittenSinceMark();
+      const drainPromise = awaitStdoutDrain();
+      if (drainPromise) {
+        await drainPromise;
+      }
       swMs = performance.now() - sw0;
     }
 
     if (options['debug-paint']) {
+      recordPaintStats(tag, dt, tbMs, rdMs, rwMs, swMs, bytesWritten);
       console_.error(
-        `paint:${tag}(fallback) dt=${dt.toFixed(1)} tb=${tbMs.toFixed(1)} sw=${swMs.toFixed(1)} sz=${imageSize.width}x${imageSize.height}`,
+        `paint:${tag}(fallback) dt=${dt.toFixed(1)} tb=${tbMs.toFixed(1)} rd=${rdMs.toFixed(1)} rw=${rwMs.toFixed(1)} sw=${swMs.toFixed(1)} bw=${bytesWritten} sz=${imageSize.width}x${imageSize.height}`,
       );
     }
   }

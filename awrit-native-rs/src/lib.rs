@@ -7,11 +7,12 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use napi::bindgen_prelude::*;
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
-use nix::sys::mman::{mmap, munmap, shm_open, shm_unlink, MapFlags, ProtFlags};
+use nix::sys::mman::{mmap, mmap_anonymous, munmap, shm_open, shm_unlink, MapFlags, ProtFlags};
 use nix::sys::stat::Mode;
 use nix::unistd::ftruncate;
 use std::num::NonZeroUsize;
 use std::os::fd::{AsFd, OwnedFd};
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -49,16 +50,72 @@ pub struct DirtyRect {
   pub height: u32,
 }
 
+/// A persistent anonymous mmap used as a warm intermediate buffer.
+///
+/// BGRA->RGBA conversion writes here instead of directly into cold shm pages.
+/// After the first frame, these pages are resident in the page cache, so
+/// subsequent writes avoid the ~2,500 zero-fill page faults that dominate the
+/// per-frame cost of writing to freshly-mmaped POSIX shm.
+struct WarmBuffer {
+  ptr: NonNull<std::ffi::c_void>,
+  len: usize,
+}
+
+impl WarmBuffer {
+  /// Allocates a new anonymous private mmap of `size` bytes.
+  fn new(size: usize) -> napi::Result<Self> {
+    let len = NonZeroUsize::new(size)
+      .ok_or_else(|| napi::Error::from_reason("Warm buffer size must be non-zero"))?;
+    let ptr = unsafe {
+      mmap_anonymous(
+        None,
+        len,
+        ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+        MapFlags::MAP_PRIVATE,
+      )
+      .map_err(|e| napi::Error::from_reason(format!("Failed to mmap warm buffer: {}", e)))?
+    };
+    Ok(Self { ptr, len: size })
+  }
+
+  fn as_mut_slice(&mut self) -> &mut [u8] {
+    unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr() as *mut u8, self.len) }
+  }
+
+  fn as_slice(&self) -> &[u8] {
+    unsafe { std::slice::from_raw_parts(self.ptr.as_ptr() as *const u8, self.len) }
+  }
+}
+
+impl Drop for WarmBuffer {
+  fn drop(&mut self) {
+    unsafe {
+      let _ = munmap(self.ptr, self.len);
+    }
+  }
+}
+
+// SAFETY: The WarmBuffer's mmap region is owned exclusively by this struct.
+// Access is serialized by the Mutex<Option<WarmBuffer>> in ShmGraphicBuffer.
+unsafe impl Send for WarmBuffer {}
+unsafe impl Sync for WarmBuffer {}
+
 /// Shared memory transport for graphics protocol.
 ///
 /// Kitty's graphics protocol unlinks the shm after reading. If we reuse the
 /// same name across paints, fast scrolling races: paint N+1 opens the still-
-/// existing name, overwrites N's data, then N+1's `loadFrame` fails because
+/// existing name, overwrites N's data, then N+1's transmit fails because
 /// Kitty unlinked between our open and its read. To avoid the race we rotate
 /// to a fresh name on every `write` / `write_iosurface` call.
 ///
-/// `write_empty` (used by the one-shot container frame) keeps the initial
-/// name; the container is only transmitted once.
+/// # Warm buffer optimization
+///
+/// Instead of converting BGRA->RGBA directly into freshly-mmaped shm pages
+/// (which triggers thousands of zero-fill page faults), we convert into a
+/// persistent warm buffer and then `write()` the result into the shm fd.
+/// The warm buffer's pages stay resident across frames, so the SIMD conversion
+/// writes to hot memory. The kernel `write()` handles shm page allocation
+/// internally without user-space page faults.
 #[napi(custom_finalize)]
 pub struct ShmGraphicBuffer {
   // Stable per-instance prefix; combined with `counter` to make unique names.
@@ -69,6 +126,10 @@ pub struct ShmGraphicBuffer {
   // Kitty which shm to open.
   current_name: Mutex<String>,
   size: u32,
+  // Persistent warm buffer for BGRA->RGBA conversion. Allocated on first use,
+  // grown if the frame size increases. Protected by a Mutex because napi
+  // requires Sync.
+  warm_buf: Mutex<Option<WarmBuffer>>,
 }
 
 impl ObjectFinalize for ShmGraphicBuffer {
@@ -107,6 +168,7 @@ impl ShmGraphicBuffer {
       counter: AtomicU64::new(1),
       current_name: Mutex::new(initial_name),
       size,
+      warm_buf: Mutex::new(None),
     }
   }
 
@@ -122,26 +184,12 @@ impl ShmGraphicBuffer {
     BASE64.encode(name.as_bytes())
   }
 
-  /// Creates and truncates the shared memory segment to the specified size, filling it with zeros.
-  ///
-  /// Used for the one-shot container frame that Kitty receives once at startup.
-  /// Does NOT rotate the name; the caller is expected to transmit this single
-  /// shm and never reuse this buffer for animation frames.
-  #[napi]
-  pub fn write_empty(&self) -> napi::Result<()> {
-    let name = self.current_name_clone();
-    let fd = shm_open(
-      name.as_str(),
-      OFlag::O_CREAT | OFlag::O_RDWR,
-      Mode::S_IRUSR | Mode::S_IWUSR,
-    )
-    .map_err(|e| napi::Error::from_reason(format!("Failed to open shared memory: {}", e)))?;
-    truncate_tolerant(&fd, self.size as i64)?;
-    Ok(())
-  }
-
   /// Writes an image buffer to the shared memory at the specified dirty rectangle.
   /// Rotates to a fresh shm name first to avoid races with Kitty's post-read unlink.
+  ///
+  /// Uses a warm intermediate buffer to avoid page faults: BGRA->RGBA conversion
+  /// writes to a persistent anonymous mmap (warm pages), then `write(fd)` copies
+  /// the result into the fresh shm fd.
   #[napi]
   pub fn write(
     &self,
@@ -149,9 +197,11 @@ impl ShmGraphicBuffer {
     image_width: u32,
     dirty_rect: Option<DirtyRect>,
   ) -> napi::Result<()> {
-    let (fd, ptr, len) = self.rotate_and_map()?;
+    let len = self.size as usize;
+    let mut warm_guard = self.ensure_warm_buf(len)?;
+    // SAFETY: ensure_warm_buf guarantees Some after success.
+    let warm = warm_guard.as_mut().unwrap();
     let src_slice = buffer.as_ref();
-    let dst_slice = unsafe { std::slice::from_raw_parts_mut(ptr.as_ptr() as *mut u8, len) };
 
     let conversion_ok = match dirty_rect {
       Some(rect) => {
@@ -161,19 +211,19 @@ impl ShmGraphicBuffer {
           width: rect.width,
           height: rect.height,
         };
-        bgra_to_rgba::bgra_to_rgba_rect(src_slice, dst_slice, image_width, bgra_rect)
+        bgra_to_rgba::bgra_to_rgba_rect(src_slice, warm.as_mut_slice(), image_width, bgra_rect)
       }
-      None => bgra_to_rgba::bgra_to_rgba(src_slice, dst_slice),
+      None => bgra_to_rgba::bgra_to_rgba(src_slice, warm.as_mut_slice()),
     };
-
-    let unmap_result = unsafe { munmap(ptr, len) };
-    drop(fd);
 
     if !conversion_ok {
       return Err(napi::Error::from_reason("Failed to convert BGRA to RGBA"));
     }
-    unmap_result
-      .map_err(|e| napi::Error::from_reason(format!("Failed to munmap shared memory: {}", e)))?;
+
+    let fd = self.rotate_and_open()?;
+    copy_to_shm_fd(&fd, warm.as_slice(), len)?;
+    // fd and warm_guard are dropped here, closing the shm descriptor and
+    // releasing the warm buffer lock.
     Ok(())
   }
 
@@ -238,15 +288,31 @@ impl ShmGraphicBuffer {
       .unwrap_or_default()
   }
 
-  /// Generates the next rotated name, opens fresh shm, truncates, and mmaps.
-  /// Returns the (fd, mmap pointer, mmap length).
-  fn rotate_and_map(
+  /// Returns a `MutexGuard` holding a `WarmBuffer` of at least `needed` bytes.
+  /// Allocates on first call; re-allocates if the frame grew (e.g. terminal resize).
+  fn ensure_warm_buf(
     &self,
-  ) -> napi::Result<(
-    OwnedFd,
-    std::ptr::NonNull<std::ffi::c_void>,
-    usize,
-  )> {
+    needed: usize,
+  ) -> napi::Result<std::sync::MutexGuard<'_, Option<WarmBuffer>>> {
+    let mut guard = self
+      .warm_buf
+      .lock()
+      .map_err(|_| napi::Error::from_reason("Warm buffer mutex poisoned"))?;
+    let needs_alloc = match guard.as_ref() {
+      Some(buf) => buf.len < needed,
+      None => true,
+    };
+    if needs_alloc {
+      // Drop old buffer (if any) before allocating the new one.
+      *guard = None;
+      *guard = Some(WarmBuffer::new(needed)?);
+    }
+    Ok(guard)
+  }
+
+  /// Rotates to a fresh shm name, opens + truncates it. Returns the fd.
+  /// Does NOT mmap the shm — callers populate it via `write(fd)` instead.
+  fn rotate_and_open(&self) -> napi::Result<OwnedFd> {
     let n = self.counter.fetch_add(1, Ordering::Relaxed);
     let new_name = format!("{}_{}", self.name_prefix, n);
 
@@ -259,28 +325,13 @@ impl ShmGraphicBuffer {
 
     truncate_tolerant(&fd, self.size as i64)?;
 
-    let len = NonZeroUsize::new(self.size as usize)
-      .ok_or_else(|| napi::Error::from_reason("Size must be non-zero"))?;
-
-    let ptr = unsafe {
-      mmap(
-        None,
-        len,
-        ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-        MapFlags::MAP_SHARED,
-        &fd,
-        0,
-      )
-      .map_err(|e| napi::Error::from_reason(format!("Failed to mmap shared memory: {}", e)))?
-    };
-
-    // Publish the new name only after a successful map; if anything above failed
-    // we don't want JS to ask Kitty to read a name we never set up.
+    // Publish the new name only after successful open+truncate; if anything
+    // above failed we don't want JS to ask Kitty to read a name we never set up.
     if let Ok(mut guard) = self.current_name.lock() {
       *guard = new_name;
     }
 
-    Ok((fd, ptr, len.get()))
+    Ok(fd)
   }
 }
 
@@ -295,6 +346,43 @@ fn truncate_tolerant<Fd: AsFd>(fd: Fd, size: i64) -> napi::Result<()> {
       e
     ))),
   }
+}
+
+/// Copies `src` into the POSIX shm backing `fd` via a transient MAP_SHARED mmap.
+///
+/// macOS does not support `write()` on shm file descriptors (returns ENXIO),
+/// so we must mmap the shm, memcpy from the warm buffer, then munmap.
+/// The warm buffer optimization still pays off: the BGRA->RGBA SIMD conversion
+/// writes to hot anonymous pages instead of cold shm pages, and this single
+/// sequential memcpy is cheaper than scattered SIMD stores into cold memory.
+fn copy_to_shm_fd<Fd: AsFd>(fd: &Fd, src: &[u8], len: usize) -> napi::Result<()> {
+  let nz_len = NonZeroUsize::new(len)
+    .ok_or_else(|| napi::Error::from_reason("shm copy length must be non-zero"))?;
+
+  let dst_ptr = unsafe {
+    mmap(
+      None,
+      nz_len,
+      ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
+      MapFlags::MAP_SHARED,
+      fd,
+      0,
+    )
+    .map_err(|e| napi::Error::from_reason(format!("Failed to mmap shm for copy: {}", e)))?
+  };
+
+  // SAFETY: dst_ptr is a valid MAP_SHARED mapping of `len` bytes; src is at
+  // least `len` bytes (guaranteed by the caller passing warm_buf.as_slice()).
+  unsafe {
+    std::ptr::copy_nonoverlapping(src.as_ptr(), dst_ptr.as_ptr() as *mut u8, len);
+  }
+
+  unsafe {
+    munmap(dst_ptr, len)
+      .map_err(|e| napi::Error::from_reason(format!("Failed to munmap shm after copy: {}", e)))?;
+  }
+
+  Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -327,8 +415,10 @@ impl ShmGraphicBuffer {
     let src_len = bytes_per_row * height;
     let src_slice = unsafe { std::slice::from_raw_parts(base, src_len) };
 
-    let (fd, ptr, len) = self.rotate_and_map()?;
-    let dst_slice = unsafe { std::slice::from_raw_parts_mut(ptr.as_ptr() as *mut u8, len) };
+    let len = self.size as usize;
+    let mut warm_guard = self.ensure_warm_buf(len)?;
+    // SAFETY: ensure_warm_buf guarantees Some after success.
+    let warm = warm_guard.as_mut().unwrap();
 
     let rect = match dirty_rect {
       Some(r) => bgra_to_rgba::Rect {
@@ -345,18 +435,17 @@ impl ShmGraphicBuffer {
       },
     };
 
-    let conversion_ok = bgra_to_rgba::bgra_to_rgba_rect(src_slice, dst_slice, stride_pixels, rect);
-
-    let unmap_result = unsafe { munmap(ptr, len) };
-    drop(fd);
+    let conversion_ok =
+      bgra_to_rgba::bgra_to_rgba_rect(src_slice, warm.as_mut_slice(), stride_pixels, rect);
 
     if !conversion_ok {
       return Err(napi::Error::from_reason(
         "Failed to convert BGRA to RGBA from IOSurface",
       ));
     }
-    unmap_result
-      .map_err(|e| napi::Error::from_reason(format!("Failed to munmap shared memory: {}", e)))?;
+
+    let fd = self.rotate_and_open()?;
+    copy_to_shm_fd(&fd, warm.as_slice(), len)?;
     Ok(())
   }
 }

@@ -9,8 +9,8 @@ import path from 'node:path';
 import { registerPaintedContent, registerPaintedContentFallback } from './paint';
 import { sessionPromise } from './session';
 import { bundledExtensionsPromise, extensionsPromise, installedExtensionsPromise } from './extensions';
-import { paintInitialFrame } from './tty/kittyGraphics';
-import { getWindowSize, ShmGraphicBuffer } from 'awrit-native-rs';
+import { createDirectFrame } from './tty/kittyGraphics';
+import { getWindowSize } from 'awrit-native-rs';
 import { options } from './args';
 import { console_ } from './console';
 import { TOOLBAR_PORT } from './runner/ports';
@@ -78,15 +78,35 @@ function padSize(size: Size): Size {
 }
 
 export const managedViews: WindowView[] = [];
+
+// Shrinks (or rescales) the BrowserWindow content dimensions while leaving the
+// terminal-cell composite destination at native size. Kitty upscales the smaller
+// IOSurface back to the original cell area, trading crispness for fewer pixels
+// per paint. See `deviceScaleFactor` in config.example.js.
+function scaleContentSize(
+  layoutSize: { width: number; height: number },
+  deviceScaleFactor: number | null,
+): { width: number; height: number } {
+  if (deviceScaleFactor === null) {
+    return { width: layoutSize.width, height: layoutSize.height };
+  }
+  return {
+    width: Math.max(1, Math.round(layoutSize.width * deviceScaleFactor)),
+    height: Math.max(1, Math.round(layoutSize.height * deviceScaleFactor)),
+  };
+}
+
 /**
  * Creates a new window with a toolbar and main content area
  * @param size Window size
  * @param initialUrl URL to load in the main content area
+ * @param deviceScaleFactor BrowserWindow content-size multiplier; null = no scaling
  * @returns The created window
  */
 export async function createWindowWithToolbar(
   size: { width: number; height: number },
-  initialUrl = 'https://github.com/TalAmuyal/awrit',
+  initialUrl: string,
+  deviceScaleFactor: number | null,
 ): Promise<WindowView> {
   console_.error('size', size);
   // Create layout container with device pixel dimensions
@@ -103,8 +123,6 @@ export async function createWindowWithToolbar(
     ? row({ height: px(TOOLBAR_HEIGHT), tag: 'toolbar' })
     : undefined;
   const contentNode = row({ height: auto(), tag: 'content' });
-
-  const hasAnimation = features.current?.loadFrame && features.current.compositeFrame;
 
   // Calculate layout
   calculateLayout(layoutContainer, toolbarNode ? [toolbarNode, contentNode] : [contentNode]);
@@ -130,6 +148,7 @@ export async function createWindowWithToolbar(
     ? new BrowserWindow({
         ...sharedConstructorOptions,
         ...toolbarNode.computedLayout,
+        ...scaleContentSize(toolbarNode.computedLayout, deviceScaleFactor),
 
         webPreferences: {
           zoomFactor: 1,
@@ -145,6 +164,7 @@ export async function createWindowWithToolbar(
   const content = new BrowserWindow({
     ...sharedConstructorOptions,
     ...contentNode.computedLayout,
+    ...scaleContentSize(contentNode.computedLayout, deviceScaleFactor),
 
     ...(options.transparent ? transparentWindowSettings : {}),
 
@@ -166,17 +186,19 @@ export async function createWindowWithToolbar(
 
   const destructors: Array<() => void> = [];
 
-  function registerPaints(size: Size) {
-    if (hasAnimation) {
-      const containerBuffer = new ShmGraphicBuffer(size.width * size.height * 4);
-      containerBuffer.writeEmpty();
-      const containerFrame = paintInitialFrame(containerBuffer, size);
+  function registerPaints(_size: Size, cellArea: { cols: number; rows: number }) {
+    if (features.current?.images) {
+      const contentFrame = createDirectFrame(cellArea);
       destructors.push(
-        containerFrame.free,
-        registerPaintedContent(containerFrame, content, contentNode).destroy,
+        contentFrame.free,
+        registerPaintedContent(contentFrame, content, contentNode).destroy,
       );
       if (toolbar && toolbarNode) {
-        destructors.push(registerPaintedContent(containerFrame, toolbar, toolbarNode).destroy);
+        const toolbarFrame = createDirectFrame(cellArea);
+        destructors.push(
+          toolbarFrame.free,
+          registerPaintedContent(toolbarFrame, toolbar, toolbarNode).destroy,
+        );
       }
     } else {
       destructors.push(registerPaintedContentFallback(content, contentNode).destroy);
@@ -186,7 +208,8 @@ export async function createWindowWithToolbar(
     }
   }
 
-  registerPaints(padSize(size));
+  const initialTermSize = getWindowSize();
+  registerPaints(padSize(size), { cols: initialTermSize.cols, rows: initialTermSize.rows });
 
   // Add to extensions
   extensionsPromise.then((extensions) => {
@@ -259,15 +282,19 @@ export async function createWindowWithToolbar(
 
       const size = getWindowSize();
       console_.error('resize', size);
-      updateViewSizes(view, size);
-      registerPaints(padSize(size));
+      updateViewSizes(view, size, deviceScaleFactor);
+      registerPaints(padSize(size), { cols: size.cols, rows: size.rows });
     }),
   );
 
   return view;
 }
 
-function updateViewSizes(view: WindowView, { width, height }: Size) {
+function updateViewSizes(
+  view: WindowView,
+  { width, height }: Size,
+  deviceScaleFactor: number | null,
+) {
   const { toolbar, content, toolbarNode, contentNode } = view;
   view.layoutContainer = layout(
     width,
@@ -279,9 +306,11 @@ function updateViewSizes(view: WindowView, { width, height }: Size) {
 
   // Update window sizes based on layout
   if (toolbar && toolbarNode) {
-    toolbar.setContentSize(toolbarNode.computedLayout.width, toolbarNode.computedLayout.height);
+    const scaled = scaleContentSize(toolbarNode.computedLayout, deviceScaleFactor);
+    toolbar.setContentSize(scaled.width, scaled.height);
   }
-  content.setContentSize(contentNode.computedLayout.width, contentNode.computedLayout.height);
+  const scaled = scaleContentSize(contentNode.computedLayout, deviceScaleFactor);
+  content.setContentSize(scaled.width, scaled.height);
 }
 
 function setupToolbarIPC(

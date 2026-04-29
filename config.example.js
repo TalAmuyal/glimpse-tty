@@ -105,9 +105,23 @@ function find({ view }) {
   view.focusedContent = view.toolbar.webContents;
 }
 
+/** Device scale factor (experimental)
+ * Multiplies the BrowserWindow content dimensions by this factor while leaving
+ * the terminal-cell composite destination at native size. Smaller values shrink
+ * the IOSurface proportionally (lower per-frame `tb` cost, smoother scroll) at
+ * the cost of visibly blurrier text — Kitty upscales the smaller bitmap back
+ * to fill the original cell area. Recommended range: `0 < N <= 1`.
+ * Overridden by the `--device-scale-factor=N` CLI flag when provided.
+ * Read once at startup; changes require an awrit restart.
+ *
+ * @type {number | null}
+ */
+// const deviceScaleFactor = 1;
+
 const config = {
   homepage,
   userExtensions,
+  // deviceScaleFactor,
   keybindings,
 };
 

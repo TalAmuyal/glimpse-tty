@@ -51,6 +51,7 @@ The Bun lockfile is `bun.lock` (text JSON, Bun 1.1.30+ format), NOT `bun.lockb`.
 The runtime user-config file lives at `${XDG_CONFIG_HOME:-$HOME/.config}/awrit/config.js`. It is seeded from `config.example.js` (repo root) on first install (by `docs/get`) and on first run (by `src/index.ts`); both seed steps are idempotent and never clobber an existing user config. The `userExtensions` array is read once during `app.whenReady()`; edits during runtime are not hot-reloaded. `userExtensions` paths starting with `~/` are home-expanded; relative paths resolve against the directory of `config.js` (i.e., `~/.config/awrit/`).
 
 - `docs/get` and `src/index.ts` each compute `XDG_CONFIG_HOME` independently. If `XDG_CONFIG_HOME` is set during install but not at runtime (or vice-versa), the user can end up with two configs. We honor whatever env the caller uses; this is intentional, not a bug.
+- `deviceScaleFactor` (experimental) multiplies the BrowserWindow content dimensions (constructor `width`/`height` and `setContentSize` calls) by `N` while leaving the layout cell coordinates and Kitty composite destination at native size. Smaller `N` shrinks the IOSurface proportionally (lower `tb` per paint) at the cost of blurrier text — Kitty upscales the smaller bitmap into the original cell area. Read once at startup; hot-reloaded edits don't take effect until awrit is restarted. Overridden by the `--device-scale-factor=N` CLI flag when provided.
 
 ## Bundle path resolution
 

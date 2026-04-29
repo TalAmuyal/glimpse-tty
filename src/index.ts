@@ -22,6 +22,7 @@ import path from 'node:path';
 interface UserConfig {
   homepage?: string;
   userExtensions?: string[];
+  deviceScaleFactor?: number | null;
   keybindings?: Record<string, KeyBindingAction> & {
     mac?: Record<string, KeyBindingAction>;
     linux?: Record<string, KeyBindingAction>;
@@ -30,10 +31,31 @@ interface UserConfig {
 
 let homepage = 'https://github.com/TalAmuyal/awrit';
 let userExtensions: string[] = [];
+let deviceScaleFactor: number | null = null;
+
+const MAX_DEVICE_SCALE_FACTOR = 2;
+
+// Values above MAX_DEVICE_SCALE_FACTOR ask Chromium for a bitmap that scales
+// quadratically in memory; >=10 reliably stalls the renderer.
+function validateDeviceScaleFactor(value: number, source: string): number | null {
+  if (Number.isFinite(value) && value > 0 && value <= MAX_DEVICE_SCALE_FACTOR) {
+    return value;
+  }
+  console_.error(
+    `Invalid ${source}=${value}; expected a number in (0, ${MAX_DEVICE_SCALE_FACTOR}]. Falling back to native rendering.`,
+  );
+  return null;
+}
 
 function loadConfig(config: UserConfig) {
   if (config.homepage) homepage = config.homepage;
   if (config.userExtensions) userExtensions = config.userExtensions;
+  if (typeof config.deviceScaleFactor === 'number') {
+    deviceScaleFactor = validateDeviceScaleFactor(
+      config.deviceScaleFactor,
+      'config.deviceScaleFactor',
+    );
+  }
   if (config.keybindings) {
     if (process.platform === 'darwin') {
       Object.assign(config.keybindings, config.keybindings.mac);
@@ -162,11 +184,27 @@ app.commandLine.appendSwitch('enable-smooth-scrolling');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('disable-gpu-vsync');
 
+// CLI flag wins over config so users can override per-invocation without touching config.js.
+function resolveDeviceScaleFactor(): number | null {
+  const cliValue = options['device-scale-factor'];
+  if (typeof cliValue === 'string') {
+    const parsed = Number(cliValue);
+    return validateDeviceScaleFactor(parsed, '--device-scale-factor');
+  }
+  return deviceScaleFactor;
+}
+
+const resolvedDeviceScaleFactor = resolveDeviceScaleFactor();
 
 app.whenReady().then(async () => {
   await loadUserExtensions(userExtensions, CONFIG_PATH_RESOLVED);
-  const window = await createWindowWithToolbar(getWindowSize(), INITIAL_URL);
+  const window = await createWindowWithToolbar(
+    getWindowSize(),
+    INITIAL_URL,
+    resolvedDeviceScaleFactor,
+  );
 
   ipcMain.handle('findInPage', (_, text: string, opts) => {
     window.content.webContents.findInPage(text, opts);
