@@ -71,13 +71,11 @@ const keybindings = {
     },
     '<M-]>': forward,
     '<M-[>': back,
-    '<M-f>': find,
     '<M-r>': refresh,
   },
   linux: {
     '<C-]>': forward,
     '<C-[>': back,
-    '<C-f>': find,
     '<C-r>': refresh,
   },
 };
@@ -95,14 +93,6 @@ function forward({ view }) {
 /** @type {KeyBindingAction} */
 function refresh({ view }) {
   view.refresh();
-}
-
-function find({ view }) {
-  if (!view.toolbar) return;
-  view.toolbar.webContents.send('toolbar:toggle-find');
-  view.content.blurWebView();
-  view.toolbar.focusOnWebView();
-  view.focusedContent = view.toolbar.webContents;
 }
 
 /** Device scale factor (experimental)

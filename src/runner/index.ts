@@ -1,10 +1,8 @@
 import { possibleOptions, options } from '../args';
-import { $, type Subprocess } from 'bun';
+import { $ } from 'bun';
 import electronPath from 'electron';
 import { copyFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { colorsToTailwind, queryColors } from './kittyColors';
-import { server } from './devServer';
 import { getDisplayScale } from '../dpi';
 
 const { stdout } = process;
@@ -49,13 +47,13 @@ await $`mkdir -p ${root}/dist`.nothrow().quiet();
 
 {
   const { success } = await Bun.build({
-    entrypoints: [join(root, 'src/index.ts'), join(root, 'src/preload.js')],
+    entrypoints: [join(root, 'src/index.ts')],
     outdir: join(root, 'dist'),
     root: join(root, 'src'),
     target: 'node',
     format: 'cjs',
     sourcemap: 'inline',
-    external: ['electron', '*.node'],
+    external: ['electron', 'awrit-native-rs', '*.node'],
   });
 
   if (!success) {
@@ -99,51 +97,6 @@ await $`mkdir -p ${root}/dist`.nothrow().quiet();
   copyFileSync(join(srcDir, 'manifest.json'), join(outDir, 'manifest.json'));
 }
 
-const version = require(join(root, 'package.json')).version;
-const distVersion = Bun.file(join(root, 'dist/version'));
-
-if (!(await distVersion.exists()) || (await distVersion.text()) !== version || options.rebuild) {
-  console.error('building toolbar');
-  let didQueryColors = false;
-  for (let tries = 0; !didQueryColors && tries < 3; tries++) {
-    try {
-      process.stdin.setRawMode(true);
-      const colors = await queryColors();
-      process.stdin.setRawMode(false);
-      if (!colors) {
-        console.error('Failed to query terminal colors');
-      } else {
-        await Bun.write(join(root, 'dist/kitty.css'), colorsToTailwind(colors));
-        didQueryColors = true;
-      }
-    } catch {
-      console.error('Failed to query terminal colors');
-    }
-  }
-  // TODO: figure out why this isn't reliable for some users
-  if (!didQueryColors) {
-    // empty placeholder required for building in case of failure
-    await Bun.write(join(root, 'dist/kitty.css'), '');
-  }
-
-  try {
-    await $`bun ${join(root, 'node_modules/vite/bin/vite.js')} build`.cwd(join(root, 'src/runner'));
-  } catch (e) {
-    const e_ = e as any;
-    console.error(e_.stderr.toString());
-    process.exit(1);
-  }
-
-  distVersion.write(version);
-}
-
-const children: [string, Subprocess][] = [];
-const isDev = options.dev;
-
-if (isDev) {
-  await server.listen();
-}
-
 const args = [
   // electronPath is not the electron module, it's the path to the electron executable, despite what TS thinks
   electronPath as unknown as string,
@@ -158,41 +111,24 @@ if (forcedDisplayScale) {
 }
 args.push(...process.argv.slice(2));
 
-children.push([
-  'electron',
-  Bun.spawn(
-    // electronPath is not the electron module, it's the path to the electron executable, despite what TS thinks
-    args,
-    {
-      stdio: ['inherit', 'inherit', 'inherit'],
-      serialization: 'json',
-      ipc(message, subprocess) {
-        // TODO: do cool stuff with IPC between bun and the electron process
-      },
-      windowsHide: true,
-      onExit() {
-        destroyAllSubprocesses();
-      },
-    },
-  ),
-]);
+const electronProcess = Bun.spawn(args, {
+  stdio: ['inherit', 'inherit', 'inherit'],
+  serialization: 'json',
+  ipc(message, subprocess) {
+    // TODO: do cool stuff with IPC between bun and the electron process
+  },
+  windowsHide: true,
+  onExit() {
+    process.exit(0);
+  },
+});
 
-function destroySubprocess(name: string, child: Subprocess) {
-  if (child.killed) return;
-  console.error('destroying', name);
-  child.kill();
-}
-
-function destroyAllSubprocesses() {
-  for (const [name, child] of children) {
-    destroySubprocess(name, child);
-  }
-  if (isDev) {
-    console.error('stopping dev server');
-    server.close();
+function cleanup() {
+  if (!electronProcess.killed) {
+    electronProcess.kill();
   }
   process.exit(0);
 }
 
-process.on('SIGINT', destroyAllSubprocesses);
-process.on('SIGTERM', destroyAllSubprocesses);
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);

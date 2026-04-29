@@ -79,28 +79,19 @@ export function handleInput(evt: TermEvent) {
       const rawX = x ?? 0;
       const rawY = y ?? 0;
 
-      // Determine which region we're in based on layout
-      const { toolbar, toolbarNode, contentNode } = view;
-      const isInToolbar = !!toolbar && rawY < contentNode.deviceLayout.y;
-
-      // Calculate position relative to the target component
       const adjustedX = Math.floor(rawX / DPI_SCALE);
-      const adjustedY = Math.floor(
-        (rawY - (isInToolbar ? 0 : (toolbarNode?.deviceLayout.height ?? 0))) / DPI_SCALE,
-      );
+      const adjustedY = Math.floor(rawY / DPI_SCALE);
 
-      const focusedContent =
-        isInToolbar && toolbar ? toolbar.webContents : view.content.webContents;
+      const webContents = view.focusedContent;
 
       if (kind === 'scrollUp' || kind === 'scrollDown') {
         const direction = kind === 'scrollUp' ? 1 : -1;
         const stepDelta = (direction * WHEEL_DELTA) / SCROLL_STEPS;
         const stepInterval = SCROLL_DURATION_MS / SCROLL_STEPS;
-        const target = view.content.webContents;
         for (let i = 0; i < SCROLL_STEPS; i++) {
           setTimeout(() => {
-            if (target.isDestroyed()) return;
-            target.sendInputEvent({
+            if (webContents.isDestroyed()) return;
+            webContents.sendInputEvent({
               type: 'mouseWheel',
               wheelTicksX: 0,
               wheelTicksY: 0,
@@ -128,7 +119,7 @@ export function handleInput(evt: TermEvent) {
       const electronButton =
         button === 'fourth' || button === 'fifth' || button == null ? undefined : button;
 
-      focusedContent.sendInputEvent({
+      webContents.sendInputEvent({
         type: kind,
         x: adjustedX,
         y: adjustedY,
@@ -137,18 +128,6 @@ export function handleInput(evt: TermEvent) {
         clickCount: kind === 'mouseDown' ? 1 : 0,
       });
 
-      if (kind === 'mouseDown' && button === 'left') {
-        if (focusedContent !== view.focusedContent) {
-          if (focusedContent === view.content.webContents) {
-            view.toolbar?.blurWebView();
-            view.content.focusOnWebView();
-          } else if (view.toolbar) {
-            view.content.blurWebView();
-            view.toolbar.focusOnWebView();
-          }
-          view.focusedContent = focusedContent;
-        }
-      }
       break;
     }
   }

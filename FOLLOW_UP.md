@@ -57,14 +57,14 @@ Add a `zoomFactor` config option, plumbed analogously to `deviceScaleFactor`:
 
 1. Declare it in `config.example.js` with default `null` and a JSDoc explaining the effect (smaller value = more "zoomed out", larger value = pages render as if the viewport were narrower; e.g. `1.5` compresses an effective 2052 CSS-px viewport down to ~1368 CSS px, in the typical desktop-browser range).
 2. Validate and store it in `loadConfig` (`src/index.ts`) — `typeof config.zoomFactor === 'number' && config.zoomFactor > 0`, mirroring the existing `deviceScaleFactor` check.
-3. In `src/windows.ts`, after each `loadURL` / `loadFile`, call `webContents.setZoomFactor(value)` on the affected `BrowserWindow`. The natural extension point is `resetForFrameQuirk` (currently calls `setZoomFactor(1)` once after `did-frame-navigate`); change the hardcoded `1` to read the config value, defaulting to `1` when unset. Apply consistently to both content and toolbar windows.
+3. In `src/windows.ts`, after each `loadURL` / `loadFile`, call `webContents.setZoomFactor(value)` on the affected `BrowserWindow`. The natural extension point is `resetForFrameQuirk` (currently calls `setZoomFactor(1)` once after `did-frame-navigate`); change the hardcoded `1` to read the config value, defaulting to `1` when unset. Apply to the content window.
 4. Document the option in `CLAUDE.md`'s `config.js` section, alongside `deviceScaleFactor`.
 
 Default to `null` / no override so existing behavior is preserved for users who don't set the option.
 
 ### File pointers
 
-- `src/windows.ts` — `resetForFrameQuirk` at lines 65–69; existing `setZoomFactor(1)` call at line 67. `webPreferences.zoomFactor: 1` is set on both windows at lines 135 and 152 — leave those as the initial-load value; the post-navigate call is what takes effect.
+- `src/windows.ts` — `resetForFrameQuirk` at lines 65–69; existing `setZoomFactor(1)` call at line 67. `webPreferences.zoomFactor: 1` is set on the content window — leave that as the initial-load value; the post-navigate call is what takes effect.
 - `src/layout.ts` — lines 277–278 compute the logical viewport from the device-pixel terminal size. Context only; do not change. The viewport size derives from this and the per-window `setZoomFactor`.
 - `config.example.js` — add the option following the same pattern used for `deviceScaleFactor` (or whichever pattern survives item 1).
 - `src/index.ts` — `loadConfig` for validation and storage; thread the value through to `windows.ts` via the same module-scope pattern as `deviceScaleFactor`.

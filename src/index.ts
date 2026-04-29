@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain } from 'electron';
+import { app, dialog } from 'electron';
 import {
   termEnableFeatures,
   listenForInput,
@@ -8,7 +8,7 @@ import {
 } from 'awrit-native-rs';
 import * as out from './tty/output';
 import { handleInput } from './inputHandler';
-import { createWindowWithToolbar } from './windows';
+import { createWindow } from './windows';
 import { loadUserExtensions } from './extensions';
 import { console_ } from './console';
 import { options } from './args';
@@ -200,20 +200,9 @@ const resolvedDeviceScaleFactor = resolveDeviceScaleFactor();
 
 app.whenReady().then(async () => {
   await loadUserExtensions(userExtensions, CONFIG_PATH_RESOLVED);
-  const window = await createWindowWithToolbar(
+  await createWindow(
     getWindowSize(),
     INITIAL_URL,
     resolvedDeviceScaleFactor,
   );
-
-  ipcMain.handle('findInPage', (_, text: string, opts) => {
-    window.content.webContents.findInPage(text, opts);
-  });
-
-  ipcMain.handle('stopFindInPage', () => {
-    window.content.webContents.stopFindInPage('clearSelection');
-    window.toolbar?.blurWebView();
-    window.content.focusOnWebView();
-    window.focusedContent = window.content.webContents;
-  });
 });

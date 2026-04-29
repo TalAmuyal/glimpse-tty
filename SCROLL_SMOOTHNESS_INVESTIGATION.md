@@ -10,7 +10,7 @@ Changes that survived from both investigation rounds:
 
 - **Electron 37 → 41** upgrade. Several Electron releases between those two reworked offscreen rendering. The plain `offscreen: true` + `toBitmap` path always fired paints during scroll on both 37 and 41 — that path's behavior is essentially the same. What the upgrade *did* unlock: the `useSharedTexture` path now fires paints during scroll on 41 (it didn't on 37), making that experimental path testable. We don't currently use it, but if we revisit it, we won't have to fight Electron 37's bugs on top of everything else.
 - **Rust 1.85 → 1.95** upgrade. Routine maintenance; not load-bearing for scroll.
-- **`webContents.setFrameRate(60)`** explicit on both content and toolbar.
+- **`webContents.setFrameRate(60)`** explicit on the content window.
 - **Chromium switches**: `--enable-smooth-scrolling`, `--enable-gpu-rasterization`, `--enable-zero-copy`, `--ignore-gpu-blocklist`, `--disable-gpu-vsync`. The first four are cheap and orthogonal; `--disable-gpu-vsync` is load-bearing (see second investigation below).
 - **Input fan-out** in `src/inputHandler.ts`. Each terminal scroll click is fanned into 10 small `hasPreciseScrollingDeltas: true` (trackpad-style) wheel events spread over 120 ms. Marginal benefit but mimics high-resolution input.
 - **Diagnostic instrumentation** in `src/paint.ts` behind the `-p` / `--debug-paint` flag. Logs `dt`, `rd` (Electron readback), `rw` (Rust shm lifecycle), `sw` (stdout to Kitty), and dimensions per paint. Includes summary statistics at exit. **Keep this.** It saved us from many speculative fixes and will be needed again next time.
