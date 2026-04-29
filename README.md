@@ -40,11 +40,22 @@ Setting `INSTALL_TO` skips `$PATH` auto-discovery; the install will use `$INSTAL
 ## Usage
 
 ```bash
-awrit [url]
+awrit [url-or-path]
 
 # if url is not provided, it will go to the awrit homepage (this is temporary, promise)
-# the URL protocol can be http:, https:, or data:
+# the URL protocol can be http:, https:, file:, or data:
 # if the URL protocol is not included, https: is used by default
+# file paths (absolute, relative, or ~/...) are auto-detected and opened as file:// URLs
+```
+
+Examples:
+
+```bash
+awrit https://example.com
+awrit example.com            # https:// is added automatically
+awrit /tmp/page.html         # opened as file:///tmp/page.html
+awrit ./README.md            # relative path resolved to absolute file:// URL
+awrit ~/notes/doc.html       # ~ expanded to home directory
 ```
 
 For more options look at the help:

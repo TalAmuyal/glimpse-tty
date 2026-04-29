@@ -1,4 +1,28 @@
+import { pathToFileURL } from 'url';
+import { resolve } from 'path';
+import { homedir } from 'os';
+
 export const rawArgs = process.argv.slice(2);
+
+const supportedSchemes = ['http', 'https', 'file', 'data'];
+
+export function resolveUrl(arg: string): string {
+  if (arg.startsWith('/')) {
+    return pathToFileURL(arg).href;
+  }
+  if (arg.startsWith('./') || arg.startsWith('../')) {
+    return pathToFileURL(resolve(process.cwd(), arg)).href;
+  }
+  if (arg.startsWith('~/')) {
+    return pathToFileURL(resolve(homedir(), arg.slice(2))).href;
+  }
+
+  for (const scheme of supportedSchemes) {
+    if (arg.startsWith(scheme + ':')) return arg;
+  }
+
+  return `https://${arg}`;
+}
 
 export const possibleOptions = {
   url: { short: 'u', description: 'Set the initial URL', string: true, arg: true },
@@ -29,8 +53,6 @@ export const options: {
   [K in Option]?: (typeof possibleOptions)[K] extends { string: true } ? string : boolean;
 } = {};
 
-const supportedSchemes = ['http', 'https', 'file', 'data'];
-
 for (const arg of rawArgs) {
   if (arg.startsWith('-')) {
     const [rawKey, value] = arg.slice(arg.startsWith('--') ? 2 : 1).split('=');
@@ -40,15 +62,13 @@ for (const arg of rawArgs) {
     }
 
     const key = shortOptions[rawKey as ShortOption] ?? rawKey;
-    options[key] = 'string' in possibleOptions[key] ? (value as any) : true;
+    if (!('string' in possibleOptions[key])) {
+      options[key] = true;
+      continue;
+    }
+    if (value === undefined) continue;
+    options[key] = key === 'url' ? resolveUrl(value) : (value as any);
   } else {
-    options.url = arg;
-  }
-
-  if (
-    typeof options.url === 'string' &&
-    !supportedSchemes.some((scheme) => (options.url as string).startsWith(scheme))
-  ) {
-    options.url = `https://${options.url}`;
+    options.url = resolveUrl(arg);
   }
 }
