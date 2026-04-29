@@ -24,8 +24,7 @@ interface BundledExtension {
 // Bundled extensions live under <repo>/default-extensions/<name>/ as source and
 // are built by the runner into <repo>/dist/extensions/<name>/. Bun's bundler
 // inlines __dirname as the original source location (<repo>/src/), so we
-// reach the built extensions via '../dist/extensions/<name>/' — matching the
-// pattern already used for '../dist/preload.js' in windows.ts.
+// reach the built extensions via '../dist/extensions/<name>/'.
 const BUNDLED_EXTENSIONS: BundledExtension[] = [
   // Renders .md and .markdown URLs as HTML.
   { name: 'markdown', loadExtensionOptions: { allowFileAccess: true } },

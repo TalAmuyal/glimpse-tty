@@ -59,7 +59,6 @@ The runtime user-config file lives at `${XDG_CONFIG_HOME:-$HOME/.config}/awrit/c
 
 To reach files under `dist/` from bundled code, write paths as `'../dist/<file>'` from `__dirname`. Examples:
 
-- `src/windows.ts` references the preload as `'../dist/preload.js'`.
 - `src/extensions.ts` resolves bundled extensions via `path.resolve(__dirname, '../dist/extensions', name)`.
 
 To reach files under `node_modules/` (which sits at the repo root), `'../node_modules/...'` from `__dirname` works because `<repo>/src/../node_modules` and `<repo>/dist/../node_modules` both resolve to `<repo>/node_modules`.
