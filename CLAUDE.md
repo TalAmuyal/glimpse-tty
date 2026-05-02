@@ -40,7 +40,7 @@ macOS: `setup.sh` patches the Electron bundle's plist to set `LSUIElement=true` 
 
 ## Testing
 
-Tests are `*.test.ts` files scattered under `src/` and run with `bun:test`. There is no `test` script in any `package.json` — run `bun test` directly or `mise test`. There is no lint/typecheck/test job in CI. Two workflows exist, both scoped to `glimpse-tty-native-rs/` changes: `.github/workflows/CI.yml` runs build verification on PRs and pushes, and `.github/workflows/CD.yml` builds and publishes GitHub Releases on pushes to master.
+Tests are `*.test.ts` files scattered under `src/` and run with `bun:test`. There is no `test` script in any `package.json` — run `bun test` directly or `mise test`. There is no lint/typecheck/test job in CI. Two workflows exist: `.github/workflows/CI.yml` runs native-rs build verification on PRs and master pushes (scoped to `glimpse-tty-native-rs/` changes), and `.github/workflows/release.yml` handles the full release — building native binaries for all platforms, publishing them as a `glimpse-tty-native-rs-X.Y.Z` release, packing distribution archives, and publishing the `v*` app release. It triggers on `v*` tag pushes and supports `workflow_dispatch`.
 
 ## Lockfile
 
