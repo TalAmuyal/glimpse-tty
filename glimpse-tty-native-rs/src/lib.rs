@@ -227,13 +227,17 @@ impl ShmGraphicBuffer {
     Ok(())
   }
 
+}
+
+#[cfg(target_os = "macos")]
+#[napi]
+impl ShmGraphicBuffer {
   /// Reads pixels directly from an IOSurface (delivered by Electron's
   /// `useSharedTexture` paint event on macOS) into shared memory, skipping
   /// the GPU→CPU readback that `image.toBitmap()` would perform.
   ///
   /// `surface_handle` is a Buffer wrapping an `IOSurfaceRef` pointer
   /// (`event.texture.textureInfo.handle.ioSurface`).
-  #[cfg(target_os = "macos")]
   #[napi]
   pub fn write_iosurface(
     &self,
