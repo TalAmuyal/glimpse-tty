@@ -9,7 +9,6 @@ import { bundledExtensionsPromise, extensionsPromise, installedExtensionsPromise
 import { createDirectFrame } from './tty/kittyGraphics';
 import { getWindowSize } from 'glimpse-tty-native-rs';
 import { options } from './args';
-import { console_ } from './console';
 import {
   layout,
   row,
@@ -88,7 +87,6 @@ export async function createWindow(
   initialUrl: string,
   deviceScaleFactor: number | null,
 ): Promise<WindowView> {
-  console_.error('size', size);
   // Create layout container with device pixel dimensions
   const layoutContainer = layout(
     size.width,
@@ -187,7 +185,6 @@ export async function createWindow(
       destructors.length = 0;
 
       const size = getWindowSize();
-      console_.error('resize', size);
       updateViewSizes(view, size, deviceScaleFactor);
       registerPaints({ cols: size.cols, rows: size.rows });
     }),
