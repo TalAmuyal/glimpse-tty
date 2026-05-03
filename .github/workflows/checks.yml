@@ -1,0 +1,20 @@
+name: Checks
+
+on:
+  pull_request:
+
+jobs:
+  version-sync:
+    name: Version sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify package versions match
+        run: |
+          ROOT_VERSION=$(node -p "require('./package.json').version")
+          NATIVE_VERSION=$(node -p "require('./glimpse-tty-native-rs/package.json').version")
+          if [[ "$ROOT_VERSION" != "$NATIVE_VERSION" ]]; then
+            echo "::error::Version mismatch: package.json is ${ROOT_VERSION} but glimpse-tty-native-rs/package.json is ${NATIVE_VERSION}"
+            exit 1
+          fi
+          echo "Versions match: ${ROOT_VERSION}"
