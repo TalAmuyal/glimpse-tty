@@ -1,6 +1,7 @@
 import { possibleOptions, options } from '../args';
 import electronPath from 'electron';
 import { resolve, join } from 'node:path';
+import { openSync } from 'node:fs';
 import { getDisplayScale } from '../dpi';
 import { resolveVersion } from './version';
 import { buildIndex, buildMarkdownExtension } from '../../scripts/build';
@@ -66,8 +67,11 @@ if (forcedDisplayScale) {
 }
 args.push(...process.argv.slice(2));
 
+const logPath = `/tmp/glimpse-tty-${Date.now()}.log`;
+const logFd = openSync(logPath, 'a');
+
 const electronProcess = Bun.spawn(args, {
-  stdio: ['inherit', 'inherit', 'inherit'],
+  stdio: ['inherit', 'inherit', logFd],
   serialization: 'json',
   ipc(message, subprocess) {
     // TODO: do cool stuff with IPC between bun and the electron process
