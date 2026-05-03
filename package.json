@@ -1,6 +1,6 @@
 {
   "name": "glimpse-tty",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "A full graphical web browser for Kitty terminal with mouse and keyboard support",
   "main": "index.js",
   "author": "Chase Colman",
